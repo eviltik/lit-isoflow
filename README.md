@@ -97,6 +97,10 @@ npm install github:eviltik/lit-isoflow
 </script>
 ```
 
+Putting it into a real app — bundling, icon packs, saving, theming, rendering
+diagrams into PDFs and Word files — is covered in the
+**[integration guide](docs/integration.md)**.
+
 ### Properties / attributes
 
 | Property          | Attribute          | Default               | Description                                                          |
