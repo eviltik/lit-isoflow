@@ -266,29 +266,64 @@
         padding: 6px;
       }
 
-      .segmented {
-        display: flex;
-        background: var(--hover);
-        border-radius: 9px;
-        padding: 3px;
-        gap: 2px;
-      }
-
-      .segmented button {
-        border: none;
-        background: transparent;
-        border-radius: 7px;
-        padding: 6px 12px;
-        font: inherit;
-        font-weight: 600;
-        color: var(--text-muted);
-        cursor: pointer;
+      /* mode switch: a real toggle, viewer ⟷ editor */
+      .mode-toggle {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
+        padding: 0 6px;
+        cursor: pointer;
+        user-select: none;
+        color: var(--text-muted);
+        font-weight: 600;
       }
 
-      .segmented button svg {
+      .mode-toggle input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .mode-toggle .track {
+        position: relative;
+        width: 38px;
+        height: 22px;
+        border-radius: 999px;
+        background: var(--hover);
+        transition: background 0.15s;
+        flex: none;
+      }
+
+      .mode-toggle .track::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #ffffff;
+        box-shadow: 0 1px 3px rgba(16, 34, 64, 0.3);
+        transition: transform 0.15s;
+      }
+
+      .mode-toggle input:checked + .track {
+        background: var(--accent);
+      }
+
+      .mode-toggle input:checked + .track::after {
+        transform: translateX(16px);
+      }
+
+      .mode-toggle input:focus-visible + .track {
+        box-shadow: 0 0 0 3px rgba(3, 146, 255, 0.25);
+      }
+
+      .mode-toggle input:checked ~ .mode-label {
+        color: var(--text);
+      }
+
+      .mode-toggle .mode-label svg {
         width: 15px;
         height: 15px;
         stroke: currentColor;
@@ -296,12 +331,61 @@
         fill: none;
         stroke-linecap: round;
         stroke-linejoin: round;
+        vertical-align: -2px;
+        margin-right: 5px;
       }
 
-      .segmented button.active {
-        background: #ffffff;
+      /* export: one button, one dropdown */
+      .export-menu {
+        position: relative;
+      }
+
+      .export-menu .menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        min-width: 176px;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius);
+        box-shadow: var(--card-shadow);
+        padding: 6px;
+        display: none;
+        z-index: 30;
+      }
+
+      .export-menu.open .menu {
+        display: block;
+      }
+
+      .export-menu .menu button {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        width: 100%;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font: inherit;
         color: var(--text);
-        box-shadow: 0 1px 4px rgba(16, 34, 64, 0.14);
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .export-menu .menu button:hover {
+        background: var(--hover);
+      }
+
+      .export-menu .menu button svg {
+        width: 17px;
+        height: 17px;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex: none;
       }
 
       .lang-switch {
@@ -507,10 +591,21 @@
 
     <div class="card top-right">
       <select id="lang-switch" class="lang-switch"></select>
-      <div class="segmented" id="mode-switch"></div>
-      <button class="icon-btn" id="export-png"></button>
-      <button class="icon-btn" id="export-svg"></button>
-      <button class="icon-btn" id="export"></button>
+
+      <label class="mode-toggle" id="mode-toggle">
+        <input type="checkbox" id="mode-input" checked />
+        <span class="track"></span>
+        <span class="mode-label" id="mode-label"></span>
+      </label>
+
+      <div class="export-menu" id="export-menu">
+        <button class="icon-btn" id="export-toggle"></button>
+        <div class="menu">
+          <button id="export-svg"></button>
+          <button id="export-png"></button>
+          <button id="export-json"></button>
+        </div>
+      </div>
     </div>
 
     <div class="card toolbar" id="toolbar"></div>
@@ -595,6 +690,9 @@
         ),
         pencil: svg(
           '<path d="M16.8 3.7a2.3 2.3 0 013.4 3.4L7.5 19.8 3 21l1.2-4.5L16.8 3.7z"/>'
+        ),
+        code: svg(
+          '<path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5M13.5 4l-3 16"/>'
         )
       };
 
@@ -607,7 +705,9 @@
       const panelId = document.querySelector('#panel-id');
       const panelFields = document.querySelector('#panel-fields');
       const panelDelete = document.querySelector('#panel-delete');
-      const modeSwitch = document.querySelector('#mode-switch');
+      const modeInput = document.querySelector('#mode-input');
+      const modeLabel = document.querySelector('#mode-label');
+      const exportMenu = document.querySelector('#export-menu');
       const langSwitch = document.querySelector('#lang-switch');
       const zoomLabel = document.querySelector('#zoom-label');
       const hints = document.querySelector('#hints');
@@ -757,38 +857,20 @@
         gallerySearch.focus();
       };
 
-      /* ---------- mode switch: editor / viewer ---------- */
-      const MODES = [
-        {
-          mode: 'editor',
-          labelKey: 'mode.editor',
-          icon: 'pencil',
-          editorMode: 'EDITABLE'
-        },
-        {
-          mode: 'viewer',
-          labelKey: 'mode.viewer',
-          icon: 'eye',
-          editorMode: 'EXPLORABLE_READONLY'
-        }
-      ];
+      /* ---------- mode switch: viewer ⟷ editor ---------- */
+      const applyMode = () => {
+        const editing = modeInput.checked;
 
-      MODES.forEach(({ mode, labelKey, icon, editorMode }) => {
-        const button = document.createElement('button');
-        button.dataset.i18nLabel = labelKey;
-        button.innerHTML = `${ICONS[icon]}<span></span>`;
-        button.classList.toggle('active', mode === 'editor');
-        button.addEventListener('click', () => {
-          document.body.dataset.mode = mode;
-          diagram.editorMode = editorMode;
-          modeSwitch.querySelectorAll('button').forEach((other) => {
-            other.classList.remove('active');
-          });
-          button.classList.add('active');
-          renderPanel(null);
-        });
-        modeSwitch.appendChild(button);
-      });
+        document.body.dataset.mode = editing ? 'editor' : 'viewer';
+        diagram.editorMode = editing ? 'EDITABLE' : 'EXPLORABLE_READONLY';
+        modeLabel.innerHTML = `${editing ? ICONS.pencil : ICONS.eye}<span>${
+          editing ? t('mode.editor') : t('mode.viewer')
+        }</span>`;
+        iconPopover.classList.remove('open');
+        renderPanel(null);
+      };
+
+      modeInput.addEventListener('change', applyMode);
 
       /* ---------- language switch ---------- */
       LANGUAGES.forEach((code) => {
@@ -805,19 +887,13 @@
         applyLanguage();
       });
 
-      /* ---------- zoom / fit / export ---------- */
+      /* ---------- zoom / fit ---------- */
       document.querySelector('#zoom-out').innerHTML = ICONS.minus;
       document.querySelector('#zoom-in').innerHTML = ICONS.plus;
       document.querySelector('#fit').innerHTML = ICONS.fit;
-      document.querySelector('#export').innerHTML = ICONS.download;
-      document.querySelector('#export-png').innerHTML = ICONS.image;
-      document.querySelector('#export-svg').innerHTML = ICONS.vector;
       document.querySelector('#zoom-out').dataset.i18nTip = 'zoom.out';
       document.querySelector('#zoom-in').dataset.i18nTip = 'zoom.in';
       document.querySelector('#fit').dataset.i18nTip = 'zoom.fit';
-      document.querySelector('#export').dataset.i18nTip = 'export.json';
-      document.querySelector('#export-png').dataset.i18nTip = 'export.png';
-      document.querySelector('#export-svg').dataset.i18nTip = 'export.svg';
 
       diagram.addEventListener('zoom-changed', (event) => {
         zoomLabel.textContent = `${Math.round(event.detail.zoom * 100)}%`;
@@ -830,6 +906,29 @@
         .addEventListener('click', () => diagram.zoomOut());
       document.querySelector('#fit').addEventListener('click', () => diagram.fit());
 
+      /* ---------- export: one button, one dropdown ---------- */
+      const exportToggle = document.querySelector('#export-toggle');
+      const exportSvgButton = document.querySelector('#export-svg');
+      const exportPngButton = document.querySelector('#export-png');
+      const exportJsonButton = document.querySelector('#export-json');
+
+      exportToggle.innerHTML = ICONS.download;
+      exportSvgButton.innerHTML = `${ICONS.vector}<span data-i18n-text="export.svg"></span>`;
+      exportPngButton.innerHTML = `${ICONS.image}<span data-i18n-text="export.png"></span>`;
+      exportJsonButton.innerHTML = `${ICONS.code}<span data-i18n-text="export.json"></span>`;
+
+      exportToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        exportMenu.classList.toggle('open');
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!exportMenu.contains(event.target)) exportMenu.classList.remove('open');
+        if (!iconPopover.contains(event.target) && !toolbar.contains(event.target)) {
+          iconPopover.classList.remove('open');
+        }
+      });
+
       const downloadBlob = (blob, filename) => {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -838,25 +937,28 @@
         URL.revokeObjectURL(link.href);
       };
 
-      document.querySelector('#export').addEventListener('click', () => {
-        const blob = new Blob([JSON.stringify(diagram.getModel(), null, 2)], {
-          type: 'application/json'
-        });
-        downloadBlob(blob, 'diagram.json');
+      exportSvgButton.addEventListener('click', () => {
+        exportMenu.classList.remove('open');
+        // Vector output, from the same pure-JS renderer a CLI would use.
+        const { svg } = diagram.exportSvg({ background: '#ffffff' });
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        window.open(URL.createObjectURL(blob), '_blank');
       });
 
-      document.querySelector('#export-png').addEventListener('click', async () => {
+      exportPngButton.addEventListener('click', async () => {
+        exportMenu.classList.remove('open');
         const { blob } = await diagram.exportPng({ scale: 2 });
         // Opens the image in a tab; the blob URL stays valid as long as this
         // page lives.
         window.open(URL.createObjectURL(blob), '_blank');
       });
 
-      document.querySelector('#export-svg').addEventListener('click', () => {
-        // Vector output, rendered by the same pure-JS renderer a CLI would use.
-        const { svg } = diagram.exportSvg({ background: '#ffffff' });
-        const blob = new Blob([svg], { type: 'image/svg+xml' });
-        window.open(URL.createObjectURL(blob), '_blank');
+      exportJsonButton.addEventListener('click', () => {
+        exportMenu.classList.remove('open');
+        const blob = new Blob([JSON.stringify(diagram.getModel(), null, 2)], {
+          type: 'application/json'
+        });
+        downloadBlob(blob, 'diagram.json');
       });
 
       /* ---------- history state ---------- */
@@ -1021,10 +1123,11 @@
         document.querySelectorAll('[data-i18n-tip]').forEach((el) => {
           el.dataset.tip = t(el.dataset.i18nTip);
         });
-        document.querySelectorAll('[data-i18n-label]').forEach((el) => {
-          el.querySelector('span').textContent = t(el.dataset.i18nLabel);
+        document.querySelectorAll('[data-i18n-text]').forEach((el) => {
+          el.textContent = t(el.dataset.i18nText);
         });
 
+        applyMode();
         gallerySearch.placeholder = t('gallery.search');
         panelDelete.textContent = t('panel.delete');
         hints.innerHTML =
