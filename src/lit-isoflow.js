@@ -41,6 +41,7 @@ import {
   incrementZoom,
   decrementZoom,
   getFitToViewParams,
+  getUnprojectedBounds,
   convertBoundsToNamedAnchors,
   outermostCornerPositions
 } from './utils/renderer.js';
@@ -59,6 +60,15 @@ const getStartingMode = (editorMode) => {
     case 'NON_INTERACTIVE':
     default:
       return { type: 'INTERACTIONS_DISABLED', showCursor: false };
+  }
+};
+
+// Lit leaves template marker comments in the DOM; they are dropped before
+// XML serialization for the PNG export.
+const stripComments = (node) => {
+  for (const child of [...node.childNodes]) {
+    if (child.nodeType === Node.COMMENT_NODE) child.remove();
+    else stripComments(child);
   }
 };
 
@@ -597,6 +607,145 @@ export class LitIsoflow extends LitElement {
   updateTextBox(id, updates) {
     if (!this._scene) return;
     this._sceneFacade().updateTextBox(id, updates);
+  }
+
+  /**
+   * Renders the current view to a PNG, without any dependency: a
+   * NON_INTERACTIVE clone is laid out at the diagram's bounds, serialized
+   * into an SVG <foreignObject> and rasterized on a canvas.
+   *
+   * Icon URLs must be data URIs or same-origin (external images would
+   * taint the canvas); text renders with locally available fonts.
+   *
+   * @param {{ scale?: number, showGrid?: boolean, background?: string, margin?: number }} [options]
+   *   scale: pixel density multiplier (default 2);
+   *   background: any CSS color, including 'transparent';
+   *   margin: padding around the content, in tiles (default 0.5).
+   * @returns {Promise<{ blob: Blob, dataUrl: string, width: number, height: number }>}
+   */
+  async exportPng({ scale = 2, showGrid = false, background, margin = 0.5 } = {}) {
+    if (!this._scene) throw new Error('No model loaded.');
+
+    // Generous first layout based on the projected tile bounding box; the
+    // canvas is then tightened to the actually rendered content, which the
+    // tile-space diamond largely overestimates.
+    const bounds = getUnprojectedBounds(this._scene.view);
+    let width = Math.ceil(bounds.width);
+    let height = Math.ceil(bounds.height);
+
+    const clone = document.createElement('lit-isoflow');
+    clone.editorMode = 'NON_INTERACTIVE';
+    clone.showGrid = showGrid;
+    clone.backgroundColor = background ?? this.backgroundColor;
+    clone.viewId = this.viewId;
+    clone.style.cssText = `position:fixed;left:-100000px;top:0;width:${width}px;height:${height}px;`;
+    clone.model = this.getModel();
+    document.body.appendChild(clone);
+
+    const settle = async () => {
+      await clone.updateComplete;
+      await new Promise((resolve) => {
+        requestAnimationFrame(resolve);
+      });
+    };
+
+    try {
+      await clone.updateComplete;
+      clone._animated = false;
+      clone._zoom = 1;
+      clone._scroll = {
+        x: -width / 2 - bounds.x,
+        y: -height / 2 - bounds.y
+      };
+      await settle();
+
+      // Icons must be decoded before measuring: their height depends on it.
+      await Promise.all(
+        [...clone.shadowRoot.querySelectorAll('img')].map((img) => {
+          return img.decode().catch(() => {});
+        })
+      );
+      await settle();
+
+      // 2. Tight crop: union of every rendered scene element, plus margin.
+      const cloneRect = clone.getBoundingClientRect();
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      clone.shadowRoot.querySelectorAll('.scene-layer *').forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+
+        minX = Math.min(minX, rect.left - cloneRect.left);
+        minY = Math.min(minY, rect.top - cloneRect.top);
+        maxX = Math.max(maxX, rect.right - cloneRect.left);
+        maxY = Math.max(maxY, rect.bottom - cloneRect.top);
+      });
+
+      if (minX !== Infinity) {
+        const pad = margin * UNPROJECTED_TILE_SIZE;
+        const newWidth = Math.ceil(maxX - minX + pad * 2);
+        const newHeight = Math.ceil(maxY - minY + pad * 2);
+
+        clone._scroll = {
+          x: clone._scroll.x + width / 2 - newWidth / 2 + (pad - minX),
+          y: clone._scroll.y + height / 2 - newHeight / 2 + (pad - minY)
+        };
+        width = newWidth;
+        height = newHeight;
+        // The scroll above already accounts for the size change: disarm the
+        // ResizeObserver compensation so it does not apply a second time.
+        clone._lastSize = null;
+        clone.style.width = `${width}px`;
+        clone.style.height = `${height}px`;
+        await settle();
+      }
+
+      // 3. Serialize the shadow content (component styles inlined, since
+      // adopted stylesheets do not survive serialization).
+      const container = clone.shadowRoot.querySelector('.container');
+      const snapshot = container.cloneNode(true);
+      stripComments(snapshot);
+
+      const wrapper = document.createElement('div');
+      wrapper.setAttribute(
+        'style',
+        `position:relative;overflow:hidden;width:${width}px;height:${height}px;font-family:${DEFAULT_FONT_FAMILY};font-size:13px;`
+      );
+      const styleEl = document.createElement('style');
+      styleEl.textContent = LitIsoflow.styles.cssText;
+      wrapper.append(styleEl, snapshot);
+
+      const xhtml = new XMLSerializer().serializeToString(wrapper);
+      const svgMarkup =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        `<foreignObject width="100%" height="100%">${xhtml}</foreignObject></svg>`;
+
+      // 4. Rasterize.
+      const image = new Image();
+      image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
+      await image.decode();
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      const context = canvas.getContext('2d');
+      context.scale(scale, scale);
+      context.drawImage(image, 0, 0);
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((result) => {
+          if (result) resolve(result);
+          else reject(new Error('PNG export failed.'));
+        }, 'image/png');
+      });
+
+      return { blob, dataUrl, width: canvas.width, height: canvas.height };
+    } finally {
+      clone.remove();
+    }
   }
 
   /** Deletes the currently selected item (also bound to the Delete key). */

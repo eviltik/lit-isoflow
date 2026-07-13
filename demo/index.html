@@ -485,6 +485,7 @@
 
     <div class="card top-right">
       <div class="segmented" id="mode-switch"></div>
+      <button class="icon-btn" id="export-png" data-tip="Exporter en PNG"></button>
       <button class="icon-btn" id="export" data-tip="Exporter le JSON"></button>
     </div>
 
@@ -537,6 +538,7 @@
         fit: svg('<path d="M8 4H6a2 2 0 00-2 2v2M16 4h2a2 2 0 012 2v2M16 20h2a2 2 0 002-2v-2M8 20H6a2 2 0 01-2-2v-2"/>'),
         download: svg('<path d="M20 15v3.5a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18.5V15M7.5 10.5L12 15l4.5-4.5M12 15V4"/>'),
         eye: svg('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>'),
+        image: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M4.5 17.5l4.5-4.5 3 3 3.5-3.5 4.5 4.5"/>'),
         pencil: svg('<path d="M16.8 3.7a2.3 2.3 0 013.4 3.4L7.5 19.8 3 21l1.2-4.5L16.8 3.7z"/>')
       };
 
@@ -705,6 +707,7 @@
       document.querySelector('#zoom-in').innerHTML = ICONS.plus;
       document.querySelector('#fit').innerHTML = ICONS.fit;
       document.querySelector('#export').innerHTML = ICONS.download;
+      document.querySelector('#export-png').innerHTML = ICONS.image;
 
       const zoomLabel = document.querySelector('#zoom-label');
       diagram.addEventListener('zoom-changed', (event) => {
@@ -713,15 +716,26 @@
       document.querySelector('#zoom-in').addEventListener('click', () => diagram.zoomIn());
       document.querySelector('#zoom-out').addEventListener('click', () => diagram.zoomOut());
       document.querySelector('#fit').addEventListener('click', () => diagram.fit());
+      const downloadBlob = (blob, filename) => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      };
+
       document.querySelector('#export').addEventListener('click', () => {
         const blob = new Blob([JSON.stringify(diagram.getModel(), null, 2)], {
           type: 'application/json'
         });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'diagram.json';
-        link.click();
-        URL.revokeObjectURL(link.href);
+        downloadBlob(blob, 'diagram.json');
+      });
+
+      document.querySelector('#export-png').addEventListener('click', async () => {
+        const { blob } = await diagram.exportPng({ scale: 2 });
+        // Ouvre l'image dans un onglet ; l'URL blob reste valide tant que
+        // la page de la démo vit.
+        window.open(URL.createObjectURL(blob), '_blank');
       });
 
       /* ---------- history state ---------- */
