@@ -3,46 +3,29 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>lit-isoflow — demo</title>
+    <title>lit-isoflow — demos</title>
     <style>
       :root {
         --accent: #0392ff;
-        --accent-soft: #e3f2ff;
         --text: #1c2430;
         --text-muted: #67748a;
+        --bg: #f6faff;
         --card-bg: #ffffff;
         --card-border: rgba(16, 34, 64, 0.08);
         --card-shadow:
           0 2px 6px rgba(16, 34, 64, 0.06), 0 12px 32px rgba(16, 34, 64, 0.1);
-        --hover: #f0f4f9;
-        --radius: 12px;
       }
 
-      /* L'UI de la démo suit le même thème que le canvas. */
-      :root[data-theme='dark'] {
-        --accent: #4493f8;
-        --accent-soft: #1f3a5f;
-        --text: #e6edf3;
-        --text-muted: #9198a1;
-        --card-bg: #2d333b;
-        --card-border: rgba(255, 255, 255, 0.1);
-        --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.4);
-        --hover: #3a424c;
-      }
-
-      :root[data-theme='dark'] .icon-popover .gallery-header input,
-      :root[data-theme='dark'] .icon-popover .gallery-header select,
-      :root[data-theme='dark'] .panel input,
-      :root[data-theme='dark'] .panel textarea,
-      :root[data-theme='dark'] .panel select {
-        background: #22272e;
-        border-color: rgba(255, 255, 255, 0.14);
-        color: var(--text);
-      }
-
-      :root[data-theme='dark'] .segmented button.active,
-      :root[data-theme='dark'] .mode-toggle .track::after {
-        background: #4d5763;
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --accent: #4493f8;
+          --text: #e6edf3;
+          --text-muted: #9198a1;
+          --bg: #1c2128;
+          --card-bg: #2d333b;
+          --card-border: rgba(255, 255, 255, 0.1);
+          --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.4);
+        }
       }
 
       * {
@@ -51,1171 +34,143 @@
 
       body {
         margin: 0;
-        height: 100vh;
-        overflow: hidden;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+        background: var(--bg);
+        color: var(--text);
         font-family:
           system-ui,
           -apple-system,
           'Segoe UI',
           Roboto,
           sans-serif;
-        color: var(--text);
-        font-size: 13px;
+        font-size: 14px;
+        line-height: 1.5;
       }
 
-      lit-isoflow {
-        position: absolute;
-        inset: 0;
-      }
-
-      /* ---------- floating cards ---------- */
-
-      .card {
-        position: absolute;
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius);
-        box-shadow: var(--card-shadow);
-        z-index: 10;
+      main {
+        width: 100%;
+        max-width: 720px;
       }
 
       .brand {
-        top: 16px;
-        left: 16px;
-        padding: 8px 14px;
-        font-weight: 700;
-        font-size: 13px;
-        letter-spacing: 0.2px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 6px;
       }
 
       .brand .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 3px;
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
         background: linear-gradient(135deg, var(--accent), #7cc3ff);
         transform: rotate(45deg);
       }
 
-      .brand .version {
+      .tagline {
         color: var(--text-muted);
-        font-weight: 400;
+        margin: 0 0 28px;
       }
 
-      /* ---------- toolbar ---------- */
+      .demos {
+        display: grid;
+        gap: 14px;
+      }
 
-      .toolbar {
-        top: 60px;
-        left: 16px;
+      a.demo {
+        display: block;
+        padding: 18px 20px;
+        border: 1px solid var(--card-border);
+        border-radius: 14px;
+        background: var(--card-bg);
+        box-shadow: var(--card-shadow);
+        text-decoration: none;
+        color: inherit;
+        transition:
+          border-color 0.12s,
+          transform 0.12s;
+      }
+
+      a.demo:hover {
+        border-color: var(--accent);
+        transform: translateY(-1px);
+      }
+
+      a.demo h2 {
+        margin: 0 0 4px;
+        font-size: 15px;
         display: flex;
-        flex-direction: column;
-        gap: 2px;
-        padding: 6px;
+        align-items: center;
+        gap: 8px;
       }
 
-      .toolbar hr {
-        border: none;
-        border-top: 1px solid var(--card-border);
-        margin: 4px 6px;
-      }
-
-      button.icon-btn {
-        display: flex;
+      a.demo .num {
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 36px;
-        height: 36px;
-        border: none;
-        border-radius: 9px;
-        background: transparent;
-        color: var(--text);
-        cursor: pointer;
-        position: relative;
-      }
-
-      button.icon-btn:hover {
-        background: var(--hover);
-      }
-
-      button.icon-btn.active {
-        background: var(--accent);
-        color: #ffffff;
-      }
-
-      button.icon-btn:disabled {
-        opacity: 0.35;
-        cursor: default;
-        background: transparent;
-      }
-
-      button.icon-btn svg {
-        width: 19px;
-        height: 19px;
-        stroke: currentColor;
-        stroke-width: 1.8;
-        fill: none;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-      }
-
-      /* tooltip */
-      button.icon-btn::after {
-        content: attr(data-tip);
-        position: absolute;
-        left: calc(100% + 10px);
-        top: 50%;
-        transform: translateY(-50%);
-        background: #222b38;
-        color: #fff;
-        padding: 5px 9px;
-        border-radius: 6px;
-        font-size: 11.5px;
-        white-space: nowrap;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.12s;
-      }
-
-      button.icon-btn:hover::after {
-        opacity: 1;
-      }
-
-      /* ---------- icon gallery popover ---------- */
-
-      .icon-popover {
-        position: absolute;
-        top: 60px;
-        left: 72px;
-        width: 396px;
-        display: none;
-        flex-direction: column;
-        z-index: 20;
-        overflow: hidden;
-      }
-
-      .icon-popover.open {
-        display: flex;
-      }
-
-      .icon-popover .gallery-header {
-        display: flex;
-        gap: 6px;
-        padding: 10px;
-        border-bottom: 1px solid var(--card-border);
-      }
-
-      .icon-popover .gallery-header input {
-        flex: 1;
-        font: inherit;
-        border: 1px solid rgba(16, 34, 64, 0.14);
-        border-radius: 8px;
-        padding: 6px 9px;
-        outline: none;
-      }
-
-      .icon-popover .gallery-header input:focus {
-        border-color: var(--accent);
-      }
-
-      .icon-popover .gallery-header select {
-        font: inherit;
-        border: 1px solid rgba(16, 34, 64, 0.14);
-        border-radius: 8px;
-        padding: 6px;
-        background: #fff;
-        outline: none;
-      }
-
-      .icon-popover .gallery-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 6px;
-        padding: 10px;
-        max-height: 380px;
-        overflow-y: auto;
-      }
-
-      .icon-popover .gallery-grid button {
-        border: 1px solid transparent;
-        border-radius: 9px;
-        background: transparent;
-        cursor: pointer;
-        padding: 8px 4px 6px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 5px;
-        font-size: 10.5px;
-        color: var(--text-muted);
-        font-family: inherit;
-        min-width: 0;
-      }
-
-      .icon-popover .gallery-grid button span {
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .icon-popover .gallery-grid button:hover {
-        background: var(--hover);
-      }
-
-      .icon-popover .gallery-grid button.selected {
-        border-color: var(--accent);
-        background: var(--accent-soft);
-        color: var(--text);
-      }
-
-      .icon-popover .gallery-grid img {
-        width: 56px;
-        height: 60px;
-        object-fit: contain;
-      }
-
-      .icon-popover .gallery-more {
-        padding: 0 12px 10px;
-        color: var(--text-muted);
-        font-size: 11px;
-      }
-
-      /* ---------- top-right: mode switch + export ---------- */
-
-      .top-right {
-        top: 16px;
-        right: 16px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px;
-      }
-
-      /* mode switch: a real toggle, viewer ⟷ editor */
-      .mode-toggle {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 0 6px;
-        cursor: pointer;
-        user-select: none;
-        color: var(--text-muted);
-        font-weight: 600;
-      }
-
-      .mode-toggle input {
-        position: absolute;
-        opacity: 0;
-        pointer-events: none;
-      }
-
-      .mode-toggle .track {
-        position: relative;
-        width: 38px;
+        width: 22px;
         height: 22px;
-        border-radius: 999px;
-        background: var(--hover);
-        transition: background 0.15s;
-        flex: none;
-      }
-
-      .mode-toggle .track::after {
-        content: '';
-        position: absolute;
-        top: 3px;
-        left: 3px;
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: #ffffff;
-        box-shadow: 0 1px 3px rgba(16, 34, 64, 0.3);
-        transition: transform 0.15s;
-      }
-
-      .mode-toggle input:checked + .track {
-        background: var(--accent);
-      }
-
-      .mode-toggle input:checked + .track::after {
-        transform: translateX(16px);
-      }
-
-      .mode-toggle input:focus-visible + .track {
-        box-shadow: 0 0 0 3px rgba(3, 146, 255, 0.25);
-      }
-
-      .mode-toggle input:checked ~ .mode-label {
-        color: var(--text);
-      }
-
-      .mode-toggle .mode-label svg {
-        width: 15px;
-        height: 15px;
-        stroke: currentColor;
-        stroke-width: 1.8;
-        fill: none;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        vertical-align: -2px;
-        margin-right: 5px;
-      }
-
-      /* export: one button, one dropdown */
-      .export-menu {
-        position: relative;
-      }
-
-      .export-menu .menu {
-        position: absolute;
-        top: calc(100% + 8px);
-        right: 0;
-        min-width: 176px;
-        background: var(--card-bg);
-        border: 1px solid var(--card-border);
-        border-radius: var(--radius);
-        box-shadow: var(--card-shadow);
-        padding: 6px;
-        display: none;
-        z-index: 30;
-      }
-
-      .export-menu.open .menu {
-        display: block;
-      }
-
-      .export-menu .menu button {
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        width: 100%;
-        border: none;
-        background: transparent;
-        border-radius: 8px;
-        padding: 8px 10px;
-        font: inherit;
-        color: var(--text);
-        cursor: pointer;
-        text-align: left;
-      }
-
-      .export-menu .menu button:hover {
-        background: var(--hover);
-      }
-
-      .export-menu .menu button svg {
-        width: 17px;
-        height: 17px;
-        stroke: currentColor;
-        stroke-width: 1.8;
-        fill: none;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        flex: none;
-      }
-
-      .lang-switch {
-        font: inherit;
-        font-weight: 600;
-        color: var(--text-muted);
-        background: transparent;
-        border: none;
         border-radius: 7px;
-        padding: 6px 4px;
-        cursor: pointer;
-        outline: none;
-      }
-
-      .lang-switch:hover {
-        background: var(--hover);
-      }
-
-      /* ---------- zoom controls ---------- */
-
-      .zoom-card {
-        bottom: 16px;
-        left: 16px;
-        display: flex;
-        align-items: center;
-        padding: 4px;
-        gap: 2px;
-      }
-
-      .zoom-card .zoom-value {
-        min-width: 46px;
-        text-align: center;
-        font-variant-numeric: tabular-nums;
-        color: var(--text-muted);
-        font-weight: 600;
-      }
-
-      /* ---------- shortcut hints ---------- */
-
-      .hints {
-        position: absolute;
-        bottom: 16px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(34, 43, 56, 0.85);
-        color: #dbe4f0;
-        padding: 7px 14px;
-        border-radius: 999px;
-        font-size: 11.5px;
-        z-index: 10;
-        pointer-events: none;
-      }
-
-      .hints b {
-        color: #ffffff;
-        font-weight: 600;
-      }
-
-      /* ---------- property panel ---------- */
-
-      .panel {
-        top: 60px;
-        right: 16px;
-        width: 264px;
-        padding: 16px;
-        max-height: calc(100vh - 140px);
-        overflow-y: auto;
-      }
-
-      .panel[hidden] {
-        display: none;
-      }
-
-      .panel .panel-type {
-        display: inline-block;
-        background: var(--accent-soft);
-        color: var(--accent);
-        font-size: 10.5px;
-        font-weight: 700;
-        letter-spacing: 0.6px;
-        padding: 3px 8px;
-        border-radius: 999px;
-        margin-bottom: 4px;
-      }
-
-      .panel .panel-id {
-        color: var(--text-muted);
+        background: var(--accent);
+        color: #fff;
         font-size: 11px;
-        margin-bottom: 10px;
-        font-family: ui-monospace, monospace;
+        font-weight: 700;
       }
 
-      .panel label {
-        display: block;
-        margin: 12px 0 5px;
-        font-weight: 600;
-        font-size: 12px;
+      a.demo p {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 13px;
       }
 
-      .panel input,
-      .panel textarea,
-      .panel select {
-        width: 100%;
-        font: inherit;
-        color: var(--text);
-        background: #fbfcfe;
-        border: 1px solid rgba(16, 34, 64, 0.14);
-        border-radius: 8px;
-        padding: 7px 9px;
-        outline: none;
+      footer {
+        margin-top: 28px;
+        color: var(--text-muted);
+        font-size: 12.5px;
       }
 
-      .panel input:focus,
-      .panel textarea:focus,
-      .panel select:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(3, 146, 255, 0.15);
-      }
-
-      .panel textarea {
-        min-height: 88px;
-        resize: vertical;
-      }
-
-      .panel .swatches {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
-
-      .panel .swatch {
-        width: 26px;
-        height: 26px;
-        border-radius: 8px;
-        border: 2px solid transparent;
-        cursor: pointer;
-        padding: 0;
-      }
-
-      .panel .swatch.selected {
-        border-color: var(--text);
-      }
-
-      .panel .icon-field {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        width: 100%;
-        font: inherit;
-        color: var(--text);
-        background: #fbfcfe;
-        border: 1px solid rgba(16, 34, 64, 0.14);
-        border-radius: 8px;
-        padding: 6px 9px;
-        cursor: pointer;
-      }
-
-      .panel .icon-field:hover {
-        border-color: var(--accent);
-      }
-
-      .panel .icon-field img {
-        width: 24px;
-        height: 26px;
-        object-fit: contain;
-      }
-
-      .panel .delete-row {
-        margin-top: 16px;
-        display: flex;
-        justify-content: flex-end;
-      }
-
-      .panel .delete-row button {
-        border: none;
-        background: #fdecec;
-        color: #c0392b;
-        font: inherit;
-        font-weight: 600;
-        padding: 7px 12px;
-        border-radius: 8px;
-        cursor: pointer;
-      }
-
-      .panel .delete-row button:hover {
-        background: #f9d9d7;
-      }
-
-      body[data-mode='viewer'] .toolbar,
-      body[data-mode='viewer'] .panel,
-      body[data-mode='viewer'] .hints,
-      body[data-mode='viewer'] .icon-popover {
-        display: none;
+      footer a {
+        color: var(--accent);
       }
     </style>
   </head>
-  <body data-mode="editor">
-    <lit-isoflow editor-mode="EDITABLE" fit-to-view></lit-isoflow>
 
-    <div class="card brand">
-      <span class="dot"></span> lit-isoflow <span class="version">demo</span>
-    </div>
+  <body>
+    <main>
+      <div class="brand"><span class="dot"></span> lit-isoflow</div>
+      <p class="tagline">
+        Viewer and editor for isometric infrastructure diagrams, as a single Lit web
+        component — no React.
+      </p>
 
-    <div class="card top-right">
-      <select id="lang-switch" class="lang-switch"></select>
+      <div class="demos">
+        <a class="demo" href="editor/">
+          <h2><span class="num">1</span> Editor</h2>
+          <p>
+            The full component: place icons, draw connectors and zones, edit properties,
+            undo/redo, export to SVG or PNG. Light and dark themes, English and French.
+          </p>
+        </a>
 
-      <label class="mode-toggle" id="mode-toggle">
-        <input type="checkbox" id="mode-input" checked />
-        <span class="track"></span>
-        <span class="mode-label" id="mode-label"></span>
-      </label>
-
-      <button class="icon-btn" id="theme-toggle"></button>
-
-      <div class="export-menu" id="export-menu">
-        <button class="icon-btn" id="export-toggle"></button>
-        <div class="menu">
-          <button id="export-svg"></button>
-          <button id="export-png"></button>
-          <button id="export-json"></button>
-        </div>
+        <a class="demo" href="stress/">
+          <h2><span class="num">2</span> Stress test</h2>
+          <p>
+            How far does it go? Generate up to 10 000 nodes and measure what it costs —
+            first render, frame rate while panning, DOM size. The numbers are what they
+            are.
+          </p>
+        </a>
       </div>
-    </div>
 
-    <div class="card toolbar" id="toolbar"></div>
-    <div class="card icon-popover" id="icon-popover"></div>
-
-    <div class="card zoom-card">
-      <button class="icon-btn" id="zoom-out"></button>
-      <span class="zoom-value" id="zoom-label">100%</span>
-      <button class="icon-btn" id="zoom-in"></button>
-      <button class="icon-btn" id="fit"></button>
-    </div>
-
-    <div class="hints" id="hints"></div>
-
-    <div class="card panel" id="panel" hidden>
-      <span class="panel-type" id="panel-type"></span>
-      <div class="panel-id" id="panel-id"></div>
-      <div id="panel-fields"></div>
-      <div class="delete-row">
-        <button id="panel-delete"></button>
-      </div>
-    </div>
-
-    <script type="module">
-      import '../src/index.js';
-      import { buildDemoModel, demoIcons } from './model.js';
-      import {
-        LANGUAGES,
-        detectLanguage,
-        setLanguage,
-        createTranslator,
-        componentStrings,
-        languageName
-      } from './i18n.js';
-
-      const diagram = document.querySelector('lit-isoflow');
-
-      let lang = detectLanguage();
-      let t = createTranslator(lang);
-      setLanguage(lang);
-
-      /* ---------- inline SVG icons (24x24 stroke paths) ---------- */
-      const svg = (paths) =>
-        `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
-
-      const ICONS = {
-        cursor: svg('<path d="M4 3l7.2 17 2.4-7.4L21 10.2 4 3z"/>'),
-        pan: svg(
-          '<path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/>'
-        ),
-        place: svg(
-          '<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M12 8.5v7M8.5 12h7"/>'
-        ),
-        connector: svg(
-          '<circle cx="5" cy="19" r="2.2"/><path d="M6.8 17.2L17 7"/><path d="M11.5 6H18v6.5"/>'
-        ),
-        zone: svg(
-          '<rect x="4" y="4" width="16" height="16" rx="2.5" stroke-dasharray="4 3"/>'
-        ),
-        text: svg('<path d="M5 7V4.5h14V7M9.5 19.5h5M12 4.5v15"/>'),
-        trash: svg(
-          '<path d="M4 6.5h16M9 6.5V4.5h6v2M18.5 6.5L17.5 20h-11l-1-13.5M10 10.5v6M14 10.5v6"/>'
-        ),
-        undo: svg('<path d="M4 7v6h6"/><path d="M20 17a8 8 0 00-13.5-5.8L4 13"/>'),
-        redo: svg('<path d="M20 7v6h-6"/><path d="M4 17a8 8 0 0113.5-5.8L20 13"/>'),
-        minus: svg('<path d="M6 12h12"/>'),
-        plus: svg('<path d="M6 12h12M12 6v12"/>'),
-        fit: svg(
-          '<path d="M8 4H6a2 2 0 00-2 2v2M16 4h2a2 2 0 012 2v2M16 20h2a2 2 0 002-2v-2M8 20H6a2 2 0 01-2-2v-2"/>'
-        ),
-        download: svg(
-          '<path d="M20 15v3.5a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18.5V15M7.5 10.5L12 15l4.5-4.5M12 15V4"/>'
-        ),
-        eye: svg(
-          '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>'
-        ),
-        image: svg(
-          '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M4.5 17.5l4.5-4.5 3 3 3.5-3.5 4.5 4.5"/>'
-        ),
-        vector: svg(
-          '<rect x="3" y="3" width="4" height="4" rx="1"/><rect x="17" y="17" width="4" height="4" rx="1"/><rect x="17" y="3" width="4" height="4" rx="1"/><rect x="3" y="17" width="4" height="4" rx="1"/><path d="M7 5h10M7 19h10M5 7v10M19 7v10"/>'
-        ),
-        pencil: svg(
-          '<path d="M16.8 3.7a2.3 2.3 0 013.4 3.4L7.5 19.8 3 21l1.2-4.5L16.8 3.7z"/>'
-        ),
-        code: svg(
-          '<path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5M13.5 4l-3 16"/>'
-        ),
-        sun: svg(
-          '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'
-        ),
-        moon: svg('<path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/>')
-      };
-
-      /* ---------- thème clair / sombre ---------- */
-      const THEME_KEY = 'lit-isoflow-demo-theme';
-      const themeToggle = document.querySelector('#theme-toggle');
-
-      const prefersDark = () => window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-      let themeName =
-        localStorage.getItem(THEME_KEY) ?? (prefersDark() ? 'dark' : 'light');
-
-      const applyTheme = () => {
-        document.documentElement.dataset.theme = themeName;
-        // Le composant expose la même notion : on lui passe le thème explicite
-        // plutôt que de le laisser en `auto`, pour que la bascule le suive.
-        diagram.theme = themeName;
-        themeToggle.innerHTML = themeName === 'dark' ? ICONS.sun : ICONS.moon;
-        themeToggle.dataset.tip = t(themeName === 'dark' ? 'theme.light' : 'theme.dark');
-      };
-
-      themeToggle.addEventListener('click', () => {
-        themeName = themeName === 'dark' ? 'light' : 'dark';
-        localStorage.setItem(THEME_KEY, themeName);
-        applyTheme();
-      });
-
-      applyTheme();
-
-      /* ---------- static structure (icons, listeners) ---------- */
-
-      const toolbar = document.querySelector('#toolbar');
-      const iconPopover = document.querySelector('#icon-popover');
-      const panel = document.querySelector('#panel');
-      const panelType = document.querySelector('#panel-type');
-      const panelId = document.querySelector('#panel-id');
-      const panelFields = document.querySelector('#panel-fields');
-      const panelDelete = document.querySelector('#panel-delete');
-      const modeInput = document.querySelector('#mode-input');
-      const modeLabel = document.querySelector('#mode-label');
-      const exportMenu = document.querySelector('#export-menu');
-      const langSwitch = document.querySelector('#lang-switch');
-      const zoomLabel = document.querySelector('#zoom-label');
-      const hints = document.querySelector('#hints');
-
-      let placeIconId = 'server';
-
-      const TOOLS = [
-        { tool: 'CURSOR', icon: 'cursor', tip: 'tool.cursor' },
-        { tool: 'PAN', icon: 'pan', tip: 'tool.pan' },
-        { tool: 'PLACE_ICON', icon: 'place', tip: 'tool.place' },
-        { tool: 'CONNECTOR', icon: 'connector', tip: 'tool.connector' },
-        { tool: 'RECTANGLE', icon: 'zone', tip: 'tool.rectangle' },
-        { tool: 'TEXTBOX', icon: 'text', tip: 'tool.textbox' }
-      ];
-
-      TOOLS.forEach(({ tool, icon, tip }) => {
-        const button = document.createElement('button');
-        button.className = 'icon-btn';
-        button.dataset.tool = tool;
-        button.dataset.i18nTip = tip;
-        button.innerHTML = ICONS[icon];
-        button.addEventListener('click', (event) => {
-          if (tool === 'PLACE_ICON') {
-            diagram.setTool(tool, { iconId: placeIconId });
-            if (iconPopover.classList.contains('open')) {
-              iconPopover.classList.remove('open');
-            } else {
-              openGallery('place', event);
-            }
-            return;
-          }
-          iconPopover.classList.remove('open');
-          diagram.setTool(tool, { iconId: placeIconId });
-        });
-        toolbar.appendChild(button);
-      });
-
-      toolbar.insertAdjacentHTML('beforeend', '<hr />');
-
-      const actionButton = (id, icon, tipKey, onClick) => {
-        const button = document.createElement('button');
-        button.className = 'icon-btn';
-        button.id = id;
-        button.dataset.i18nTip = tipKey;
-        button.innerHTML = ICONS[icon];
-        button.addEventListener('click', onClick);
-        toolbar.appendChild(button);
-        return button;
-      };
-
-      const undoButton = actionButton('undo', 'undo', 'action.undo', () =>
-        diagram.undo()
-      );
-      const redoButton = actionButton('redo', 'redo', 'action.redo', () =>
-        diagram.redo()
-      );
-      const deleteButton = actionButton('delete', 'trash', 'action.delete', () =>
-        diagram.deleteSelection()
-      );
-      undoButton.disabled = true;
-      redoButton.disabled = true;
-      deleteButton.disabled = true;
-
-      const syncToolButtons = () => {
-        toolbar.querySelectorAll('button[data-tool]').forEach((button) => {
-          button.classList.toggle('active', button.dataset.tool === diagram.tool);
-        });
-      };
-
-      diagram.addEventListener('tool-changed', syncToolButtons);
-
-      /* ---------- icon gallery (search + pack filter) ----------
-         Reused in two modes: 'place' (stamp tool) and 'assign'
-         (swap the selected node's icon from the property panel). */
-      const GALLERY_MAX = 60;
-      const collections = [...new Set(demoIcons.map((icon) => icon.collection))];
-      let galleryMode = 'place';
-
-      iconPopover.innerHTML = `
-        <div class="gallery-header">
-          <input type="search" id="gallery-search" />
-          <select id="gallery-collection">
-            ${collections.map((name) => `<option>${name}</option>`).join('')}
-          </select>
-        </div>
-        <div class="gallery-grid" id="gallery-grid"></div>
-        <div class="gallery-more" id="gallery-more"></div>
-      `;
-
-      const gallerySearch = iconPopover.querySelector('#gallery-search');
-      const galleryCollection = iconPopover.querySelector('#gallery-collection');
-      const galleryGrid = iconPopover.querySelector('#gallery-grid');
-      const galleryMore = iconPopover.querySelector('#gallery-more');
-
-      const renderGallery = () => {
-        const term = gallerySearch.value.trim().toLowerCase();
-        const matches = demoIcons.filter((icon) => {
-          return (
-            icon.collection === galleryCollection.value &&
-            (!term ||
-              icon.name.toLowerCase().includes(term) ||
-              icon.id.toLowerCase().includes(term))
-          );
-        });
-
-        galleryGrid.replaceChildren();
-        matches.slice(0, GALLERY_MAX).forEach((icon) => {
-          const button = document.createElement('button');
-          button.innerHTML = `<img src="${icon.url}" alt="" loading="lazy" /><span>${icon.name}</span>`;
-          if (galleryMode === 'place' && icon.id === placeIconId) {
-            button.classList.add('selected');
-          }
-          button.addEventListener('click', () => {
-            iconPopover.classList.remove('open');
-            if (galleryMode === 'place') {
-              placeIconId = icon.id;
-              diagram.setTool('PLACE_ICON', { iconId: placeIconId });
-            } else {
-              const selected = diagram.getSelectedItem();
-              if (selected?.type === 'ITEM') {
-                diagram.updateItem(selected.id, { icon: icon.id });
-                renderPanel({ type: 'ITEM', id: selected.id });
-              }
-            }
-          });
-          galleryGrid.appendChild(button);
-        });
-
-        if (matches.length > GALLERY_MAX) {
-          galleryMore.textContent = t('gallery.more', {
-            count: matches.length - GALLERY_MAX
-          });
-        } else if (matches.length === 0) {
-          galleryMore.textContent = t('gallery.empty');
-        } else {
-          galleryMore.textContent = '';
-        }
-      };
-
-      gallerySearch.addEventListener('input', renderGallery);
-      galleryCollection.addEventListener('change', renderGallery);
-
-      const openGallery = (mode, event) => {
-        // Sans cela, le clic qui ouvre la galerie continue vers le gestionnaire
-        // « clic à l'extérieur » (plus bas), qui la referme aussitôt.
-        event?.stopPropagation();
-
-        galleryMode = mode;
-        renderGallery();
-        iconPopover.classList.add('open');
-        gallerySearch.focus();
-      };
-
-      /* ---------- mode switch: viewer ⟷ editor ---------- */
-      const applyMode = () => {
-        const editing = modeInput.checked;
-
-        document.body.dataset.mode = editing ? 'editor' : 'viewer';
-        diagram.editorMode = editing ? 'EDITABLE' : 'EXPLORABLE_READONLY';
-        modeLabel.innerHTML = `${editing ? ICONS.pencil : ICONS.eye}<span>${
-          editing ? t('mode.editor') : t('mode.viewer')
-        }</span>`;
-        iconPopover.classList.remove('open');
-        renderPanel(null);
-      };
-
-      modeInput.addEventListener('change', applyMode);
-
-      /* ---------- language switch ---------- */
-      LANGUAGES.forEach((code) => {
-        const option = document.createElement('option');
-        option.value = code;
-        option.textContent = languageName(code);
-        langSwitch.appendChild(option);
-      });
-      langSwitch.value = lang;
-      langSwitch.addEventListener('change', () => {
-        lang = langSwitch.value;
-        t = createTranslator(lang);
-        setLanguage(lang);
-        applyLanguage();
-      });
-
-      /* ---------- zoom / fit ---------- */
-      document.querySelector('#zoom-out').innerHTML = ICONS.minus;
-      document.querySelector('#zoom-in').innerHTML = ICONS.plus;
-      document.querySelector('#fit').innerHTML = ICONS.fit;
-      document.querySelector('#zoom-out').dataset.i18nTip = 'zoom.out';
-      document.querySelector('#zoom-in').dataset.i18nTip = 'zoom.in';
-      document.querySelector('#fit').dataset.i18nTip = 'zoom.fit';
-
-      diagram.addEventListener('zoom-changed', (event) => {
-        zoomLabel.textContent = `${Math.round(event.detail.zoom * 100)}%`;
-      });
-      document
-        .querySelector('#zoom-in')
-        .addEventListener('click', () => diagram.zoomIn());
-      document
-        .querySelector('#zoom-out')
-        .addEventListener('click', () => diagram.zoomOut());
-      document.querySelector('#fit').addEventListener('click', () => diagram.fit());
-
-      /* ---------- export: one button, one dropdown ---------- */
-      const exportToggle = document.querySelector('#export-toggle');
-      const exportSvgButton = document.querySelector('#export-svg');
-      const exportPngButton = document.querySelector('#export-png');
-      const exportJsonButton = document.querySelector('#export-json');
-
-      exportToggle.innerHTML = ICONS.download;
-      exportSvgButton.innerHTML = `${ICONS.vector}<span data-i18n-text="export.svg"></span>`;
-      exportPngButton.innerHTML = `${ICONS.image}<span data-i18n-text="export.png"></span>`;
-      exportJsonButton.innerHTML = `${ICONS.code}<span data-i18n-text="export.json"></span>`;
-
-      exportToggle.addEventListener('click', (event) => {
-        event.stopPropagation();
-        exportMenu.classList.toggle('open');
-      });
-
-      document.addEventListener('click', (event) => {
-        if (!exportMenu.contains(event.target)) exportMenu.classList.remove('open');
-        if (!iconPopover.contains(event.target) && !toolbar.contains(event.target)) {
-          iconPopover.classList.remove('open');
-        }
-      });
-
-      const downloadBlob = (blob, filename) => {
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        link.click();
-        URL.revokeObjectURL(link.href);
-      };
-
-      exportSvgButton.addEventListener('click', () => {
-        exportMenu.classList.remove('open');
-        // Vector output, from the same pure-JS renderer a CLI would use.
-        const { svg } = diagram.exportSvg({ background: '#ffffff' });
-        const blob = new Blob([svg], { type: 'image/svg+xml' });
-        window.open(URL.createObjectURL(blob), '_blank');
-      });
-
-      exportPngButton.addEventListener('click', async () => {
-        exportMenu.classList.remove('open');
-        const { blob } = await diagram.exportPng({ scale: 2 });
-        // Opens the image in a tab; the blob URL stays valid as long as this
-        // page lives.
-        window.open(URL.createObjectURL(blob), '_blank');
-      });
-
-      exportJsonButton.addEventListener('click', () => {
-        exportMenu.classList.remove('open');
-        const blob = new Blob([JSON.stringify(diagram.getModel(), null, 2)], {
-          type: 'application/json'
-        });
-        downloadBlob(blob, 'diagram.json');
-      });
-
-      /* ---------- history state ---------- */
-      diagram.addEventListener('history-changed', (event) => {
-        undoButton.disabled = !event.detail.canUndo;
-        redoButton.disabled = !event.detail.canRedo;
-      });
-
-      /* ---------- property panel (reference example of grafting an editor) ---------- */
-      panelDelete.addEventListener('click', () => {
-        diagram.deleteSelection();
-      });
-
-      const field = (labelText, inputEl) => {
-        const label = document.createElement('label');
-        label.textContent = labelText;
-        panelFields.append(label, inputEl);
-        return inputEl;
-      };
-
-      const textInput = (value, onInput) => {
-        const input = document.createElement('input');
-        input.value = value ?? '';
-        input.addEventListener('input', () => onInput(input.value));
-        return input;
-      };
-
-      const selectInput = (options, value, onChange) => {
-        const select = document.createElement('select');
-        options.forEach(([optionValue, optionLabel]) => {
-          const option = document.createElement('option');
-          option.value = optionValue;
-          option.textContent = optionLabel;
-          select.appendChild(option);
-        });
-        select.value = value ?? options[0]?.[0] ?? '';
-        select.addEventListener('change', () => onChange(select.value));
-        return select;
-      };
-
-      const colorSwatches = (current, onChange) => {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'swatches';
-        diagram.getModel().colors.forEach((color) => {
-          const swatch = document.createElement('button');
-          swatch.className = 'swatch';
-          swatch.style.background = color.value;
-          swatch.title = color.id;
-          if (color.id === current) swatch.classList.add('selected');
-          swatch.addEventListener('click', () => {
-            wrapper.querySelectorAll('.swatch').forEach((other) => {
-              other.classList.remove('selected');
-            });
-            swatch.classList.add('selected');
-            onChange(color.id);
-          });
-          wrapper.appendChild(swatch);
-        });
-        return wrapper;
-      };
-
-      const renderPanel = (item) => {
-        panelFields.replaceChildren();
-        const selected = item ? diagram.getSelectedItem() : null;
-
-        if (!selected) {
-          panel.hidden = true;
-          return;
-        }
-
-        panel.hidden = false;
-        panelType.textContent = t(`panel.type.${selected.type}`);
-        panelId.textContent = selected.id;
-
-        if (selected.type === 'ITEM') {
-          field(
-            t('panel.name'),
-            textInput(selected.modelItem.name, (value) => {
-              diagram.updateItem(selected.id, { name: value });
-            })
-          );
-
-          const textarea = document.createElement('textarea');
-          textarea.value = selected.modelItem.description ?? '';
-          textarea.addEventListener('input', () => {
-            diagram.updateItem(selected.id, { description: textarea.value });
-          });
-          field(t('panel.description'), textarea);
-
-          const currentIcon = diagram
-            .getModel()
-            .icons.find((icon) => icon.id === selected.modelItem.icon);
-          const iconButton = document.createElement('button');
-          iconButton.className = 'icon-field';
-          iconButton.innerHTML = currentIcon
-            ? `<img src="${currentIcon.url}" alt="" /><span>${currentIcon.name}</span>`
-            : `<span>${t('gallery.choose')}</span>`;
-          iconButton.addEventListener('click', (event) => openGallery('assign', event));
-          field(t('panel.icon'), iconButton);
-        } else if (selected.type === 'CONNECTOR') {
-          field(
-            t('panel.label'),
-            textInput(selected.connector.description, (value) => {
-              diagram.updateConnector(selected.id, { description: value });
-            })
-          );
-          field(
-            t('panel.color'),
-            colorSwatches(selected.connector.color, (value) => {
-              diagram.updateConnector(selected.id, { color: value });
-            })
-          );
-          field(
-            t('panel.style'),
-            selectInput(
-              [
-                ['SOLID', t('style.solid')],
-                ['DASHED', t('style.dashed')],
-                ['DOTTED', t('style.dotted')]
-              ],
-              selected.connector.style ?? 'SOLID',
-              (value) => diagram.updateConnector(selected.id, { style: value })
-            )
-          );
-        } else if (selected.type === 'RECTANGLE') {
-          field(
-            t('panel.color'),
-            colorSwatches(selected.rectangle.color, (value) => {
-              diagram.updateRectangle(selected.id, { color: value });
-            })
-          );
-        } else if (selected.type === 'TEXTBOX') {
-          field(
-            t('panel.text'),
-            textInput(selected.textBox.content, (value) => {
-              diagram.updateTextBox(selected.id, { content: value });
-            })
-          );
-          field(
-            t('panel.size'),
-            selectInput(
-              [
-                ['0.4', t('size.small')],
-                ['0.6', t('size.normal')],
-                ['1', t('size.large')]
-              ],
-              String(selected.textBox.fontSize ?? 0.6),
-              (value) => diagram.updateTextBox(selected.id, { fontSize: Number(value) })
-            )
-          );
-        }
-      };
-
-      diagram.addEventListener('item-selected', (event) => {
-        renderPanel(event.detail.item);
-        deleteButton.disabled = !event.detail.item;
-        syncToolButtons();
-      });
-
-      /* ---------- apply the current language to every label ---------- */
-      const applyLanguage = () => {
-        document.querySelectorAll('[data-i18n-tip]').forEach((el) => {
-          el.dataset.tip = t(el.dataset.i18nTip);
-        });
-        document.querySelectorAll('[data-i18n-text]').forEach((el) => {
-          el.textContent = t(el.dataset.i18nText);
-        });
-
-        // L'infobulle du bouton de thème dépend du thème courant : elle ne peut
-        // pas être posée statiquement comme les autres.
-        applyTheme();
-
-        applyMode();
-        gallerySearch.placeholder = t('gallery.search');
-        panelDelete.textContent = t('panel.delete');
-        hints.innerHTML =
-          `<b>Shift/Space</b> ${t('hints.pan')}&nbsp;&nbsp;·&nbsp;&nbsp;` +
-          `<b>Del</b> ${t('hints.delete')}&nbsp;&nbsp;·&nbsp;&nbsp;` +
-          `<b>Ctrl+Z / Ctrl+Y</b> ${t('hints.undo')}`;
-
-        // The component renders two strings of its own.
-        diagram.strings = componentStrings(t);
-
-        renderGallery();
-        renderPanel(null);
-        syncToolButtons();
-      };
-
-      applyLanguage();
-
-      // The sample diagram is built in the detected language. Switching
-      // languages afterwards only relabels the UI: the diagram is the user's
-      // document by then, and reloading it would discard their edits.
-      diagram.model = buildDemoModel(t);
-    </script>
+      <footer>
+        <a href="https://github.com/eviltik/lit-isoflow">Source on GitHub</a> · MIT
+      </footer>
+    </main>
   </body>
 </html>

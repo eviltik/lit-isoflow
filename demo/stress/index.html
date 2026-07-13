@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lit-isoflow — stress test</title>
+    <style>
+      :root {
+        --accent: #0392ff;
+        --text: #1c2430;
+        --text-muted: #67748a;
+        --card-bg: #ffffff;
+        --card-border: rgba(16, 34, 64, 0.08);
+        --card-shadow:
+          0 2px 6px rgba(16, 34, 64, 0.06), 0 12px 32px rgba(16, 34, 64, 0.1);
+        --hover: #f0f4f9;
+        --good: #1a7f4b;
+        --warn: #b26a00;
+        --bad: #b3261e;
+        --radius: 12px;
+      }
+
+      :root[data-theme='dark'] {
+        --accent: #4493f8;
+        --text: #e6edf3;
+        --text-muted: #9198a1;
+        --card-bg: #2d333b;
+        --card-border: rgba(255, 255, 255, 0.1);
+        --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.4);
+        --hover: #3a424c;
+        --good: #3fb950;
+        --warn: #d29922;
+        --bad: #ff7b72;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        height: 100vh;
+        overflow: hidden;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      lit-isoflow {
+        position: absolute;
+        inset: 0;
+      }
+
+      .card {
+        position: absolute;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius);
+        box-shadow: var(--card-shadow);
+        z-index: 10;
+      }
+
+      .brand {
+        top: 16px;
+        left: 16px;
+        padding: 8px 14px;
+        font-weight: 700;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .brand:hover {
+        border-color: var(--accent);
+      }
+
+      .brand .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: linear-gradient(135deg, var(--accent), #7cc3ff);
+        transform: rotate(45deg);
+      }
+
+      .brand .version {
+        color: var(--text-muted);
+        font-weight: 400;
+      }
+
+      /* ---------- control panel ---------- */
+
+      .panel {
+        top: 16px;
+        right: 16px;
+        width: 300px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-height: calc(100vh - 32px);
+        overflow-y: auto;
+      }
+
+      .panel h2 {
+        margin: 0;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--text-muted);
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .field label {
+        font-size: 11.5px;
+        color: var(--text-muted);
+      }
+
+      .presets {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 5px;
+      }
+
+      .presets button,
+      .run {
+        font: inherit;
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text);
+        padding: 7px 4px;
+        cursor: pointer;
+      }
+
+      .presets button:hover,
+      .run:hover {
+        background: var(--hover);
+      }
+
+      .presets button.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      .run {
+        padding: 9px;
+        font-weight: 600;
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .run:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+
+      .field input[type='number'],
+      .field select {
+        font: inherit;
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        padding: 6px 8px;
+        background: var(--card-bg);
+        color: var(--text);
+        outline: none;
+      }
+
+      .toggles {
+        display: flex;
+        gap: 14px;
+        font-size: 11.5px;
+        color: var(--text-muted);
+      }
+
+      .toggles label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+      }
+
+      /* ---------- results ---------- */
+
+      .results {
+        border-top: 1px solid var(--card-border);
+        padding-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .metric {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+      }
+
+      .metric .name {
+        color: var(--text-muted);
+        font-size: 11.5px;
+      }
+
+      .metric .value {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+
+      .value.good {
+        color: var(--good);
+      }
+      .value.warn {
+        color: var(--warn);
+      }
+      .value.bad {
+        color: var(--bad);
+      }
+
+      .verdict {
+        font-size: 11.5px;
+        line-height: 1.45;
+        color: var(--text-muted);
+        border-top: 1px solid var(--card-border);
+        padding-top: 10px;
+      }
+
+      .note {
+        font-size: 11px;
+        line-height: 1.45;
+        color: var(--text-muted);
+      }
+
+      /* ---------- busy overlay ---------- */
+
+      .busy {
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(2px);
+        font-weight: 600;
+      }
+
+      :root[data-theme='dark'] .busy {
+        background: rgba(28, 33, 40, 0.7);
+      }
+
+      .busy.on {
+        display: flex;
+      }
+    </style>
+  </head>
+
+  <body>
+    <lit-isoflow editor-mode="EDITABLE"></lit-isoflow>
+
+    <a class="card brand" href="../" title="All demos">
+      <span class="dot"></span> lit-isoflow <span class="version">stress</span>
+    </a>
+
+    <div class="card panel">
+      <h2>Stress test</h2>
+
+      <p class="note">
+        How many nodes can the component hold before it stops being usable? Pick a size,
+        run it, and read the numbers — including the bad ones.
+      </p>
+
+      <div class="field">
+        <label for="count">Nodes</label>
+        <div class="presets" id="presets">
+          <button data-count="100">100</button>
+          <button data-count="1000">1 000</button>
+          <button data-count="5000">5 000</button>
+          <button data-count="10000">10 000</button>
+        </div>
+        <input id="count" type="number" min="1" max="50000" step="100" value="1000" />
+      </div>
+
+      <div class="field">
+        <label for="connectors">Connectors (routed with A*)</label>
+        <select id="connectors">
+          <option value="0">None</option>
+          <option value="0.25">One per 4 nodes</option>
+          <option value="0.5" selected>One per 2 nodes</option>
+          <option value="1">One per node</option>
+        </select>
+      </div>
+
+      <div class="toggles">
+        <label><input id="labels" type="checkbox" checked /> Labels</label>
+        <label><input id="grid" type="checkbox" checked /> Grid</label>
+      </div>
+
+      <button class="run" id="run">Run</button>
+
+      <div class="results" id="results" hidden>
+        <div class="metric">
+          <span class="name">Model built</span>
+          <span class="value" id="m-build">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">First render</span>
+          <span class="value" id="m-render">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">DOM nodes</span>
+          <span class="value" id="m-dom">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">DOM nodes per diagram node</span>
+          <span class="value" id="m-ratio">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">Frame rate (panning)</span>
+          <span class="value" id="m-fps">—</span>
+        </div>
+        <div class="verdict" id="verdict"></div>
+      </div>
+    </div>
+
+    <div class="busy" id="busy">Rendering…</div>
+
+    <script type="module">
+      import '../../src/index.js';
+      import { generateModel } from '../shared/generate.js';
+
+      const diagram = document.querySelector('lit-isoflow');
+      const $ = (id) => document.getElementById(id);
+      const busy = $('busy');
+
+      // The stress page follows the OS theme; there is no toggle to get in the
+      // way of what we are here to measure.
+      const dark = matchMedia('(prefers-color-scheme: dark)');
+      const applyTheme = () => {
+        document.documentElement.dataset.theme = dark.matches ? 'dark' : 'light';
+      };
+      dark.addEventListener('change', applyTheme);
+      applyTheme();
+
+      /** Lets the browser paint before we block the thread again. */
+      const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+
+      const fmt = {
+        ms: (v) => `${Math.round(v).toLocaleString()} ms`,
+        count: (v) => v.toLocaleString()
+      };
+
+      /** Colours a metric by how far it is from a comfortable value. */
+      const grade = (el, value, { good, bad }) => {
+        const rising = bad > good; // higher is worse (ms, DOM nodes)
+        const ok = rising ? value <= good : value >= good;
+        const ko = rising ? value >= bad : value <= bad;
+        el.className = `value ${ok ? 'good' : ko ? 'bad' : 'warn'}`;
+      };
+
+      /**
+       * Measures the frame rate while the view is actually moving: a static
+       * diagram sits at 60 fps whatever its size, which would tell us nothing.
+       *
+       * The pan is driven with real mouse events on the PAN tool rather than by
+       * poking at the component's internals — so what we measure is the path a
+       * user takes, hit-testing and scene derivation included.
+       */
+      const measureFps = async (ms = 1200) => {
+        const rect = diagram.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const mouse = (type, x, y) => {
+          window.dispatchEvent(
+            new MouseEvent(type, { clientX: x, clientY: y, bubbles: true, buttons: 1 })
+          );
+        };
+
+        const previous = diagram.tool;
+        diagram.setTool('PAN');
+        mouse('mousedown', cx, cy);
+
+        const t0 = performance.now();
+        let frames = 0;
+
+        const fps = await new Promise((resolve) => {
+          const tick = () => {
+            const elapsed = performance.now() - t0;
+            if (elapsed >= ms) {
+              resolve((frames / elapsed) * 1000);
+              return;
+            }
+
+            // A circular drag: keeps the whole scene moving without wandering off.
+            mouse(
+              'mousemove',
+              cx + Math.cos(elapsed / 120) * 90,
+              cy + Math.sin(elapsed / 120) * 90
+            );
+            frames += 1;
+            requestAnimationFrame(tick);
+          };
+
+          requestAnimationFrame(tick);
+        });
+
+        mouse('mouseup', cx, cy);
+        diagram.setTool(previous);
+
+        return fps;
+      };
+
+      const verdictFor = (fps, render) => {
+        if (fps >= 50 && render < 500) {
+          return 'Comfortable: interaction is smooth and the first paint is instant.';
+        }
+        if (fps >= 24) {
+          return 'Usable but heavy: the view still follows the mouse, with visible lag.';
+        }
+        if (fps >= 10) {
+          return 'Sluggish: every node is a live DOM subtree, and the whole scene is re-rendered on each frame. This is the ceiling — beyond it, the fix is viewport culling, not tuning.';
+        }
+        return 'Not usable at this size. The DOM renderer is the wrong tool here: it would take viewport culling (render only what is on screen) or a canvas renderer.';
+      };
+
+      const run = async () => {
+        const count = Math.max(1, Number($('count').value) || 1);
+        const connectorRatio = Number($('connectors').value);
+        const labels = $('labels').checked;
+
+        $('run').disabled = true;
+        busy.classList.add('on');
+        await nextFrame();
+
+        // 1. Build the model.
+        const tBuild = performance.now();
+        const model = generateModel({ count, connectorRatio, labels });
+        const buildMs = performance.now() - tBuild;
+
+        // 2. First render: from handing over the model to the frame that shows it.
+        diagram.showGrid = $('grid').checked;
+        const tRender = performance.now();
+        diagram.model = model;
+        await diagram.updateComplete;
+        await nextFrame();
+        const renderMs = performance.now() - tRender;
+
+        diagram.fit();
+        await diagram.updateComplete;
+
+        const domNodes = diagram.shadowRoot.querySelectorAll('*').length;
+
+        busy.classList.remove('on');
+        await nextFrame();
+
+        // 3. Frame rate while panning.
+        const fps = await measureFps();
+
+        $('results').hidden = false;
+        $('m-build').textContent = fmt.ms(buildMs);
+        $('m-render').textContent = fmt.ms(renderMs);
+        $('m-dom').textContent = fmt.count(domNodes);
+        $('m-ratio').textContent = `≈ ${(domNodes / count).toFixed(0)}`;
+        $('m-fps').textContent = `${fps.toFixed(0)} fps`;
+
+        grade($('m-build'), buildMs, { good: 100, bad: 1000 });
+        grade($('m-render'), renderMs, { good: 500, bad: 3000 });
+        grade($('m-dom'), domNodes, { good: 5000, bad: 50000 });
+        grade($('m-fps'), fps, { good: 50, bad: 15 });
+        $('m-ratio').className = 'value';
+
+        $('verdict').textContent = verdictFor(fps, renderMs);
+        $('run').disabled = false;
+      };
+
+      $('presets').addEventListener('click', (e) => {
+        const button = e.target.closest('button[data-count]');
+        if (!button) return;
+
+        $('count').value = button.dataset.count;
+        for (const b of $('presets').children) {
+          b.classList.toggle('active', b === button);
+        }
+      });
+
+      $('run').addEventListener('click', run);
+      $('grid').addEventListener('change', () => {
+        diagram.showGrid = $('grid').checked;
+      });
+    </script>
+  </body>
+</html>
