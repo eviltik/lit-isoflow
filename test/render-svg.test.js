@@ -73,8 +73,32 @@ test('renderToSvg: renders every element of the scene', () => {
   assert.match(svg, />HTTPS</, 'the connector label');
   assert.match(svg, />Production</, 'the text box');
   assert.match(svg, />Client</, 'a node label');
-  assert.match(svg, /<image[^>]*data:image\/svg\+xml/, 'the node icons');
+  assert.match(svg, /<symbol id="iso-icon-srv"/, 'the icon artwork, inlined');
+  assert.match(svg, /<use href="#iso-icon-srv"/, 'the node icons');
   assert.match(svg, /stroke-dasharray="20, 20"/, 'the DASHED connector style');
+});
+
+test('renderToSvg: icons are inlined as symbols, not nested data URIs', () => {
+  const inlined = renderToSvg(makeModel()).svg;
+
+  // Nested <image href="data:…"> is what pdfmake (and others) cannot decode.
+  assert.ok(!inlined.includes('<image'), 'no nested data-URI images by default');
+
+  // Each icon is defined once and instanced, however many nodes use it.
+  assert.equal(inlined.match(/<symbol/g).length, 1);
+  assert.equal(inlined.match(/<use /g).length, 2);
+
+  const referenced = renderToSvg(makeModel(), { inlineIcons: false }).svg;
+  assert.match(referenced, /<image[^>]*data:image\/svg\+xml/);
+});
+
+test('renderToSvg: only the icons the view uses are inlined', () => {
+  const model = makeModel();
+  model.icons.push({ id: 'unused', name: 'Unused', url: iconUrl, isIsometric: true });
+
+  const { svg } = renderToSvg(model);
+
+  assert.ok(!svg.includes('iso-icon-unused'), 'unused icons are not embedded');
 });
 
 test('renderToSvg: node descriptions are flattened from HTML to text', () => {
@@ -116,10 +140,10 @@ test('renderToSvg: margin widens the viewBox', () => {
 
 test('renderToSvg: icon aspect ratio is read from the data URI', () => {
   const { svg } = renderToSvg(makeModel());
-  const image = svg.match(/<image[^>]*width="([\d.]+)" height="([\d.]+)"/);
+  const use = svg.match(/<use[^>]*width="([\d.]+)" height="([\d.]+)"/);
 
-  assert.ok(image, 'an <image> is emitted');
-  const ratio = parseFloat(image[2]) / parseFloat(image[1]);
+  assert.ok(use, 'a <use> is emitted');
+  const ratio = parseFloat(use[2]) / parseFloat(use[1]);
 
   // The test icon's viewBox is 100x115.
   assert.ok(Math.abs(ratio - 1.15) < 0.01, `expected a 1.15 ratio, got ${ratio}`);

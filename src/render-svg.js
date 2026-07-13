@@ -33,7 +33,7 @@ import {
   connectorPathTileToGlobal
 } from './utils/renderer.js';
 import { getColorVariant } from './utils/common.js';
-import { gridTileDataUri } from './assets/grid-tile.js';
+import { GRID_TILE_VIEWBOX, GRID_TILE_BODY } from './assets/grid-tile.js';
 
 /** Rough label metrics; the DOM sizes labels to their content, we estimate. */
 const LABEL_FONT_SIZE = 11;
@@ -266,7 +266,31 @@ const renderConnectorLabels = (scene) => {
     .join('');
 };
 
-const renderNodes = (scene, model, icons) => {
+/**
+ * Extracts the innards of an SVG data URI plus its viewBox, so the artwork can
+ * be inlined as a <symbol> instead of referenced with <image href="data:...">.
+ * Some SVG consumers (pdfmake among them) cannot decode nested data URIs, and
+ * inlining also keeps the output truly vector.
+ */
+const iconSymbol = (icon) => {
+  const markup = decodeDataUri(icon.url);
+  if (!markup) return null;
+
+  const open = markup.match(/<svg\b[^>]*>/i);
+  const close = markup.lastIndexOf('</svg>');
+  if (!open || close === -1) return null;
+
+  const size = intrinsicSize(icon.url);
+  if (!size) return null;
+
+  const viewBox =
+    open[0].match(/viewBox=["']([^"']+)["']/i)?.[1] ?? `0 0 ${size.width} ${size.height}`;
+  const body = markup.slice(open.index + open[0].length, close);
+
+  return { viewBox, body, size };
+};
+
+const renderNodes = (scene, model, icons, symbols) => {
   // Painter's algorithm: the component leans on z-index, SVG on document order,
   // so draw back-to-front (highest x+y first).
   const sorted = [...scene.items].sort((a, b) => {
@@ -309,18 +333,23 @@ const renderNodes = (scene, model, icons) => {
         const { width, height } = icons[icon.id];
         const iconHeight = (height / width) * iconWidth;
 
+        // Inlined artwork (<use> of a <symbol>) when we could decode it,
+        // <image href="data:…"> otherwise — the latter is not understood by
+        // every SVG consumer, hence the preference for symbols.
+        const artwork = (x, y) => {
+          return symbols[icon.id]
+            ? `<use href="#iso-icon-${escapeXml(icon.id)}" x="${x}" y="${y}" ` +
+                `width="${iconWidth}" height="${iconHeight}"/>`
+            : `<image href="${escapeXml(icon.url)}" x="${x}" y="${y}" ` +
+                `width="${iconWidth}" height="${iconHeight}"/>`;
+        };
+
         if (icon.isIsometric === false) {
           // Flat artwork: projected onto the ground plane.
           const { transform } = projectFlatIcon(position);
-          parts +=
-            `<g transform="${transform}">` +
-            `<image href="${escapeXml(icon.url)}" width="${iconWidth}" height="${iconHeight}"/>` +
-            `</g>`;
+          parts += `<g transform="${transform}">${artwork(0, 0)}</g>`;
         } else {
-          parts +=
-            `<image href="${escapeXml(icon.url)}" ` +
-            `x="${position.x - iconWidth / 2}" y="${position.y - iconHeight}" ` +
-            `width="${iconWidth}" height="${iconHeight}"/>`;
+          parts += artwork(position.x - iconWidth / 2, position.y - iconHeight);
         }
       }
 
@@ -433,35 +462,42 @@ const decodeBase64 = (payload) => {
   return globalThis.Buffer.from(payload, 'base64').toString('utf8');
 };
 
+/** Decodes an SVG data URI to its markup, or null if it is not one. */
+const decodeDataUri = (url) => {
+  if (typeof url !== 'string' || !url.startsWith('data:image/svg+xml')) return null;
+
+  try {
+    const comma = url.indexOf(',');
+    const payload = url.slice(comma + 1);
+
+    return url.slice(0, comma).includes(';base64')
+      ? decodeBase64(payload)
+      : decodeURIComponent(payload);
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Aspect ratio of an SVG data-URI icon, read from its viewBox — the DOM would
  * get this by loading the image, we parse it. Returns null for raster icons
  * (callers can pass `iconSizes` for those).
  */
 const intrinsicSize = (url) => {
-  if (typeof url !== 'string' || !url.startsWith('data:image/svg+xml')) return null;
+  const markup = decodeDataUri(url);
+  if (!markup) return null;
 
-  try {
-    const comma = url.indexOf(',');
-    const payload = url.slice(comma + 1);
-    const markup = url.slice(0, comma).includes(';base64')
-      ? decodeBase64(payload)
-      : decodeURIComponent(payload);
+  const viewBox = markup.match(
+    /viewBox=["']\s*[\d.-]+[\s,]+[\d.-]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i
+  );
+  if (viewBox) {
+    return { width: parseFloat(viewBox[1]), height: parseFloat(viewBox[2]) };
+  }
 
-    const viewBox = markup.match(
-      /viewBox=["']\s*[\d.-]+[\s,]+[\d.-]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i
-    );
-    if (viewBox) {
-      return { width: parseFloat(viewBox[1]), height: parseFloat(viewBox[2]) };
-    }
-
-    const width = markup.match(/\swidth=["']([\d.]+)/i);
-    const height = markup.match(/\sheight=["']([\d.]+)/i);
-    if (width && height) {
-      return { width: parseFloat(width[1]), height: parseFloat(height[1]) };
-    }
-  } catch {
-    // Malformed data URI: fall back to a square icon.
+  const width = markup.match(/\swidth=["']([\d.]+)/i);
+  const height = markup.match(/\sheight=["']([\d.]+)/i);
+  if (width && height) {
+    return { width: parseFloat(width[1]), height: parseFloat(height[1]) };
   }
 
   return null;
@@ -488,6 +524,10 @@ const projectFlatIcon = (position) => {
  * @param {Record<string, {width: number, height: number}>} [options.iconSizes]
  *   intrinsic size of each icon, keyed by icon id — needed to place artwork
  *   without a DOM to measure it. Defaults to a square tile.
+ * @param {boolean} [options.inlineIcons=true] - inline SVG icon artwork as
+ *   <symbol>/<use> instead of <image href="data:…">. Keeps the output truly
+ *   vector and works with consumers that cannot decode nested data URIs
+ *   (pdfmake, for one). Raster icons always fall back to <image>.
  * @returns {{ svg: string, width: number, height: number }}
  */
 export const renderToSvg = (model, options = {}) => {
@@ -496,16 +536,33 @@ export const renderToSvg = (model, options = {}) => {
     showGrid = false,
     background = 'transparent',
     margin = 0.5,
-    iconSizes = {}
+    iconSizes = {},
+    inlineIcons = true
   } = options;
 
   const parsed = modelSchema.parse({ ...INITIAL_DATA, ...model });
   const scene = deriveScene(parsed, viewId);
 
+  // Only the icons this view actually uses: a model can carry a whole isopack
+  // (1000+ icons), and inlining them all would bloat the output.
+  const usedIconIds = new Set();
+  scene.items.forEach((item) => {
+    const modelItem = resolveModelItem(parsed, item.id);
+    if (modelItem?.icon) usedIconIds.add(modelItem.icon);
+  });
+
   const icons = {};
+  const symbols = {};
   parsed.icons.forEach((icon) => {
+    if (!usedIconIds.has(icon.id)) return;
+
     icons[icon.id] = iconSizes[icon.id] ??
       intrinsicSize(icon.url) ?? { width: 1, height: 1 };
+
+    if (inlineIcons) {
+      const symbol = iconSymbol(icon);
+      if (symbol) symbols[icon.id] = symbol;
+    }
   });
 
   const { minX, minY, width, height } = contentBounds(scene, margin);
@@ -515,25 +572,40 @@ export const renderToSvg = (model, options = {}) => {
       ? `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${escapeXml(background)}"/>`
       : '';
 
-  const grid = showGrid
-    ? `<defs><pattern id="iso-grid" patternUnits="userSpaceOnUse" ` +
+  // The grid tile is inlined as vector geometry rather than referenced as a
+  // data URI, for the same reason as the icons.
+  const gridDefs = showGrid
+    ? `<pattern id="iso-grid" patternUnits="userSpaceOnUse" ` +
       `width="${PROJECTED_TILE_SIZE.width}" height="${PROJECTED_TILE_SIZE.height * 2}" ` +
       `x="${-PROJECTED_TILE_SIZE.width / 2}" y="0">` +
-      `<image href="${gridTileDataUri}" width="${PROJECTED_TILE_SIZE.width}" ` +
-      `height="${PROJECTED_TILE_SIZE.height * 2}"/></pattern></defs>` +
-      `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="url(#iso-grid)"/>`
+      `<svg viewBox="${GRID_TILE_VIEWBOX}" width="${PROJECTED_TILE_SIZE.width}" ` +
+      `height="${PROJECTED_TILE_SIZE.height * 2}">${GRID_TILE_BODY}</svg>` +
+      `</pattern>`
+    : '';
+
+  const symbolDefs = Object.entries(symbols)
+    .map(([id, { viewBox, body }]) => {
+      return `<symbol id="iso-icon-${escapeXml(id)}" viewBox="${escapeXml(viewBox)}">${body}</symbol>`;
+    })
+    .join('');
+
+  const defs = gridDefs || symbolDefs ? `<defs>${gridDefs}${symbolDefs}</defs>` : '';
+
+  const gridRect = showGrid
+    ? `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="url(#iso-grid)"/>`
     : '';
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ` +
     `viewBox="${minX} ${minY} ${width} ${height}" width="${width}" height="${height}">` +
+    defs +
     backgroundRect +
     renderRectangles(scene) +
-    grid +
+    gridRect +
     renderConnectors(scene) +
     renderTextBoxes(scene) +
     renderConnectorLabels(scene) +
-    renderNodes(scene, parsed, icons) +
+    renderNodes(scene, parsed, icons, symbols) +
     `</svg>`;
 
   return { svg, width, height };
