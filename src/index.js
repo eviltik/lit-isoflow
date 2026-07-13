@@ -9,5 +9,7 @@ export {
 export {
   getFitToViewParams,
   getUnprojectedBounds,
-  getProjectBounds
+  getProjectBounds,
+  getTilePosition
 } from './utils/renderer.js';
+export * as mutations from './editor/mutations.js';

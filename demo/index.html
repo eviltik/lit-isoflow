@@ -16,14 +16,29 @@
       header {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         padding: 8px 16px;
         border-bottom: 1px solid #ddd;
+        flex-wrap: wrap;
       }
 
       header h1 {
         font-size: 16px;
-        margin: 0 auto 0 0;
+        margin: 0 16px 0 0;
+      }
+
+      .spacer {
+        margin-left: auto;
+      }
+
+      button.active {
+        background: #0392ff;
+        color: white;
+        border-color: #0392ff;
+      }
+
+      select {
+        max-width: 120px;
       }
 
       lit-isoflow {
@@ -34,12 +49,25 @@
   <body>
     <header>
       <h1>lit-isoflow</h1>
+      <button id="tool-cursor" data-tool="CURSOR" title="Sélectionner / déplacer">➤ Sélection</button>
+      <button id="tool-pan" data-tool="PAN" title="Déplacer la vue">✋ Pan</button>
+      <select id="icon-picker" title="Icône à placer"></select>
+      <button id="tool-place" data-tool="PLACE_ICON" title="Placer une icône">＋ Icône</button>
+      <button id="tool-connector" data-tool="CONNECTOR" title="Tracer un connecteur">→ Connecteur</button>
+      <button id="tool-rectangle" data-tool="RECTANGLE" title="Dessiner une zone">▭ Zone</button>
+      <button id="tool-textbox" data-tool="TEXTBOX" title="Ajouter du texte">T Texte</button>
+      <button id="delete" title="Supprimer la sélection (Suppr)">🗑</button>
+      <button id="undo" title="Annuler (Ctrl+Z)" disabled>↩</button>
+      <button id="redo" title="Rétablir (Ctrl+Y)" disabled>↪</button>
+      <span class="spacer"></span>
+      <span id="status"></span>
       <span id="zoom-label">zoom: 100%</span>
       <button id="zoom-out">−</button>
       <button id="zoom-in">+</button>
       <button id="fit">Ajuster</button>
+      <button id="export">Exporter JSON</button>
     </header>
-    <lit-isoflow fit-to-view></lit-isoflow>
+    <lit-isoflow editor-mode="EDITABLE" fit-to-view></lit-isoflow>
 
     <script type="module">
       import '../src/index.js';
@@ -47,6 +75,56 @@
 
       const diagram = document.querySelector('lit-isoflow');
       diagram.model = demoModel;
+
+      const iconPicker = document.querySelector('#icon-picker');
+      demoModel.icons.forEach((icon) => {
+        const option = document.createElement('option');
+        option.value = icon.id;
+        option.textContent = icon.name;
+        iconPicker.appendChild(option);
+      });
+
+      const toolButtons = document.querySelectorAll('button[data-tool]');
+      const syncToolButtons = () => {
+        toolButtons.forEach((button) => {
+          button.classList.toggle('active', button.dataset.tool === diagram.tool);
+        });
+      };
+
+      toolButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          diagram.setTool(button.dataset.tool, { iconId: iconPicker.value });
+        });
+      });
+
+      diagram.addEventListener('tool-changed', syncToolButtons);
+      diagram.addEventListener('item-selected', (event) => {
+        const item = event.detail.item;
+        document.querySelector('#status').textContent = item
+          ? `${item.type} ${item.id.slice(0, 8)}`
+          : '';
+        syncToolButtons();
+      });
+      diagram.addEventListener('model-updated', () => {
+        document.querySelector('#status').textContent = 'modèle modifié ✓';
+      });
+
+      document.querySelector('#delete').addEventListener('click', () => {
+        diagram.deleteSelection();
+      });
+
+      const undoButton = document.querySelector('#undo');
+      const redoButton = document.querySelector('#redo');
+      undoButton.addEventListener('click', () => {
+        diagram.undo();
+      });
+      redoButton.addEventListener('click', () => {
+        diagram.redo();
+      });
+      diagram.addEventListener('history-changed', (event) => {
+        undoButton.disabled = !event.detail.canUndo;
+        redoButton.disabled = !event.detail.canRedo;
+      });
 
       const zoomLabel = document.querySelector('#zoom-label');
       diagram.addEventListener('zoom-changed', (event) => {
@@ -62,6 +140,18 @@
       document.querySelector('#fit').addEventListener('click', () => {
         diagram.fit();
       });
+      document.querySelector('#export').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(diagram.getModel(), null, 2)], {
+          type: 'application/json'
+        });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'diagram.json';
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+
+      syncToolButtons();
     </script>
   </body>
 </html>

@@ -1,12 +1,14 @@
 /**
- * <lit-isoflow> — isometric diagram renderer.
+ * <lit-isoflow> — isometric diagram renderer and editor.
  *
  * Phase 1: read-only rendering (grid, nodes, connectors, rectangles,
- * text boxes, labels) with pan & zoom. Model format is interchangeable
- * with Isoflow/FossFLOW JSON exports.
+ * text boxes, labels) with pan & zoom.
+ * Phase 2: editing via interaction modes ported from Isoflow (select, drag,
+ * draw connectors/rectangles, place icons, text boxes, transform anchors).
  *
- * Layer order mirrors Isoflow's Renderer: rectangles < grid < connectors
- * < textBoxes < connectorLabels < nodes.
+ * Model format is interchangeable with Isoflow/FossFLOW JSON exports.
+ * Layer order mirrors Isoflow's Renderer: rectangles < grid < cursor
+ * < connectors < textBoxes < connectorLabels < nodes < transform controls.
  */
 import { LitElement, html, svg, css, nothing } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
@@ -19,6 +21,9 @@ import {
   DEFAULT_LABEL_HEIGHT,
   TEXTBOX_PADDING,
   TEXTBOX_FONT_WEIGHT,
+  TEXTBOX_DEFAULTS,
+  TRANSFORM_ANCHOR_SIZE,
+  TRANSFORM_CONTROLS_COLOR,
   MARKDOWN_EMPTY_VALUE,
   INITIAL_DATA
 } from './config.js';
@@ -30,12 +35,38 @@ import {
   getIsoProjectionCss,
   getConnectorDirectionIcon,
   connectorPathTileToGlobal,
+  getAnchorTile,
+  getTextBoxEndTile,
+  getMouse,
   incrementZoom,
   decrementZoom,
-  getFitToViewParams
+  getFitToViewParams,
+  convertBoundsToNamedAnchors,
+  outermostCornerPositions
 } from './utils/renderer.js';
-import { getColorVariant, toPx } from './utils/common.js';
+import { getColorVariant, toPx, generateId } from './utils/common.js';
+import { CoordsUtils } from './utils/coords.js';
+import { interactionModes } from './editor/modes.js';
+import * as mutations from './editor/mutations.js';
 import { gridTileDataUri } from './assets/grid-tile.js';
+
+const getStartingMode = (editorMode) => {
+  switch (editorMode) {
+    case 'EDITABLE':
+      return { type: 'CURSOR', showCursor: true, mousedownItem: null };
+    case 'EXPLORABLE_READONLY':
+      return { type: 'PAN', showCursor: false };
+    case 'NON_INTERACTIVE':
+    default:
+      return { type: 'INTERACTIONS_DISABLED', showCursor: false };
+  }
+};
+
+const INITIAL_MOUSE = {
+  position: { screen: { x: 0, y: 0 }, tile: { x: 0, y: 0 } },
+  mousedown: null,
+  delta: null
+};
 
 export class LitIsoflow extends LitElement {
   static properties = {
@@ -43,7 +74,7 @@ export class LitIsoflow extends LitElement {
     model: { type: Object },
     /** View to display; defaults to the model's first view. */
     viewId: { type: String, attribute: 'view-id' },
-    /** 'EXPLORABLE_READONLY' (pan/zoom) or 'NON_INTERACTIVE'. */
+    /** 'EDITABLE', 'EXPLORABLE_READONLY' (pan/zoom) or 'NON_INTERACTIVE'. */
     editorMode: { type: String, attribute: 'editor-mode' },
     showGrid: { type: Boolean, attribute: 'show-grid' },
     backgroundColor: { type: String, attribute: 'background-color' },
@@ -53,7 +84,10 @@ export class LitIsoflow extends LitElement {
     _zoom: { state: true },
     _scroll: { state: true },
     _animated: { state: true },
-    _modelError: { state: true }
+    _modelError: { state: true },
+    _mode: { state: true },
+    _itemControls: { state: true },
+    _cursorCss: { state: true }
   };
 
   static styles = css`
@@ -61,7 +95,7 @@ export class LitIsoflow extends LitElement {
       display: block;
       position: relative;
       overflow: hidden;
-      font-family: ${css`Roboto, Arial, sans-serif`};
+      font-family: Roboto, Arial, sans-serif;
       contain: strict;
     }
 
@@ -71,14 +105,7 @@ export class LitIsoflow extends LitElement {
       overflow: hidden;
       transform: translateZ(0);
       user-select: none;
-    }
-
-    .container.pannable {
-      cursor: grab;
-    }
-
-    .container.pannable.panning {
-      cursor: grabbing;
+      touch-action: none;
     }
 
     .grid {
@@ -96,6 +123,7 @@ export class LitIsoflow extends LitElement {
       width: 0;
       height: 0;
       user-select: none;
+      pointer-events: none;
     }
 
     .animated .scene-layer {
@@ -106,6 +134,15 @@ export class LitIsoflow extends LitElement {
       transition:
         background-size 0.25s ease-out,
         background-position 0.25s ease-out;
+    }
+
+    .scene-layer.controls {
+      pointer-events: none;
+    }
+
+    .transform-anchor {
+      pointer-events: auto;
+      cursor: pointer;
     }
 
     .projected {
@@ -220,33 +257,68 @@ export class LitIsoflow extends LitElement {
     this._scroll = { x: 0, y: 0 };
     this._animated = true;
     this._modelError = null;
+    this._mode = getStartingMode(this.editorMode);
+    this._itemControls = null;
+    this._cursorCss = 'default';
+
     this._scene = null;
-    this._parsedModel = null;
-    this._panPointerId = null;
-    this._lastPanPosition = null;
+    this._workingModel = null;
+    this._mouse = INITIAL_MOUSE;
+    this._prevModeType = null;
     this._hasFitted = false;
+    this._modelUpdateTimer = null;
+    this._undoStack = [];
+    this._redoStack = [];
+    this._historyOpen = false;
+
+    this._onWindowMouseEvent = this._handleMouseEvent.bind(this);
+    this._onWindowTouchStart = this._makeTouchHandler('mousedown');
+    this._onWindowTouchMove = this._makeTouchHandler('mousemove');
+    this._onWindowTouchEnd = (event) => {
+      this._handleMouseEvent({ clientX: 0, clientY: 0, type: 'mouseup', target: event.target, composedPath: () => event.composedPath() });
+    };
+    this._onWindowKeyDown = this._handleKeyDown.bind(this);
 
     this._resizeObserver = new ResizeObserver(() => {
-      this._rendererSize = {
-        width: this.clientWidth,
-        height: this.clientHeight
-      };
+      this.requestUpdate();
     });
   }
 
   connectedCallback() {
     super.connectedCallback();
     this._resizeObserver.observe(this);
+    window.addEventListener('mousemove', this._onWindowMouseEvent);
+    window.addEventListener('mousedown', this._onWindowMouseEvent);
+    window.addEventListener('mouseup', this._onWindowMouseEvent);
+    window.addEventListener('touchstart', this._onWindowTouchStart);
+    window.addEventListener('touchmove', this._onWindowTouchMove);
+    window.addEventListener('touchend', this._onWindowTouchEnd);
+    window.addEventListener('keydown', this._onWindowKeyDown);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this._resizeObserver.disconnect();
+    window.removeEventListener('mousemove', this._onWindowMouseEvent);
+    window.removeEventListener('mousedown', this._onWindowMouseEvent);
+    window.removeEventListener('mouseup', this._onWindowMouseEvent);
+    window.removeEventListener('touchstart', this._onWindowTouchStart);
+    window.removeEventListener('touchmove', this._onWindowTouchMove);
+    window.removeEventListener('touchend', this._onWindowTouchEnd);
+    window.removeEventListener('keydown', this._onWindowKeyDown);
+    clearTimeout(this._modelUpdateTimer);
   }
 
   willUpdate(changed) {
     if (changed.has('model') || changed.has('viewId')) {
       this._ingestModel();
+    }
+
+    if (changed.has('editorMode')) {
+      this._mode = getStartingMode(this.editorMode);
+      this._itemControls = null;
+      this._cursorCss = 'default';
+      this._prevModeType = null;
     }
   }
 
@@ -261,6 +333,8 @@ export class LitIsoflow extends LitElement {
       );
     }
   }
+
+  // --- public API ---
 
   /** Zooms in one increment (same steps as Isoflow). */
   zoomIn() {
@@ -288,10 +362,175 @@ export class LitIsoflow extends LitElement {
     this._emitZoom();
   }
 
+  /** Returns a deep snapshot of the current (possibly edited) model. */
+  getModel() {
+    return this._workingModel ? structuredClone(this._workingModel) : null;
+  }
+
+  get canUndo() {
+    return this._undoStack.length > 0;
+  }
+
+  get canRedo() {
+    return this._redoStack.length > 0;
+  }
+
+  /** Undoes the last edit gesture (also bound to Ctrl+Z). */
+  undo() {
+    if (!this.canUndo) return;
+
+    this._redoStack.push(structuredClone(this._workingModel));
+    this._workingModel = this._undoStack.pop();
+    this._historyOpen = false;
+    this._itemControls = null;
+    this._afterHistoryChange();
+  }
+
+  /** Redoes the last undone edit gesture (also bound to Ctrl+Y / Ctrl+Shift+Z). */
+  redo() {
+    if (!this.canRedo) return;
+
+    this._undoStack.push(structuredClone(this._workingModel));
+    this._workingModel = this._redoStack.pop();
+    this._historyOpen = false;
+    this._itemControls = null;
+    this._afterHistoryChange();
+  }
+
+  _afterHistoryChange() {
+    this._resyncScene();
+    this.requestUpdate();
+    clearTimeout(this._modelUpdateTimer);
+    this.dispatchEvent(
+      new CustomEvent('model-updated', {
+        detail: { model: this.getModel() },
+        bubbles: true,
+        composed: true
+      })
+    );
+    this._emitHistoryChanged();
+  }
+
+  _emitHistoryChanged() {
+    this.dispatchEvent(
+      new CustomEvent('history-changed', {
+        detail: { canUndo: this.canUndo, canRedo: this.canRedo },
+        bubbles: true,
+        composed: true
+      })
+    );
+  }
+
+  /**
+   * Opens an undo step on the first mutation of a gesture: everything until
+   * the next mouseup (or a 250 ms pause) collapses into one history entry.
+   */
+  _beforeMutation() {
+    if (this._historyOpen) return;
+
+    this._undoStack.push(structuredClone(this._workingModel));
+    if (this._undoStack.length > 50) this._undoStack.shift();
+    this._redoStack = [];
+    this._historyOpen = true;
+    this._emitHistoryChanged();
+  }
+
+  /** Currently active tool, derived from the interaction mode. */
+  get tool() {
+    switch (this._mode.type) {
+      case 'CURSOR':
+      case 'DRAG_ITEMS':
+        return 'CURSOR';
+      case 'RECTANGLE.DRAW':
+      case 'RECTANGLE.TRANSFORM':
+        return 'RECTANGLE';
+      case 'TEXTBOX':
+        return 'TEXTBOX';
+      default:
+        return this._mode.type;
+    }
+  }
+
+  /**
+   * Activates an editing tool (requires editorMode = 'EDITABLE').
+   * @param {'CURSOR'|'PAN'|'PLACE_ICON'|'CONNECTOR'|'RECTANGLE'|'TEXTBOX'} tool
+   * @param {{ iconId?: string }} [options] - PLACE_ICON: icon to stamp
+   */
+  setTool(tool, options = {}) {
+    if (this.editorMode !== 'EDITABLE' || !this._scene) return;
+
+    switch (tool) {
+      case 'CURSOR':
+        this._setMode({ type: 'CURSOR', showCursor: true, mousedownItem: null });
+        break;
+      case 'PAN':
+        this._setMode({ type: 'PAN', showCursor: false });
+        this._setItemControls(null);
+        break;
+      case 'PLACE_ICON':
+        this._setMode({
+          type: 'PLACE_ICON',
+          showCursor: true,
+          id: options.iconId ?? null
+        });
+        break;
+      case 'CONNECTOR':
+        this._setMode({ type: 'CONNECTOR', showCursor: true, id: null });
+        break;
+      case 'RECTANGLE':
+        this._setMode({ type: 'RECTANGLE.DRAW', showCursor: true, id: null });
+        break;
+      case 'TEXTBOX': {
+        const textBoxId = generateId();
+
+        this._sceneFacade().createTextBox({
+          ...TEXTBOX_DEFAULTS,
+          id: textBoxId,
+          tile: this._mouse.position.tile
+        });
+        this._setMode({ type: 'TEXTBOX', showCursor: false, id: textBoxId });
+        break;
+      }
+      default:
+        throw new Error(`Unknown tool: ${tool}`);
+    }
+
+    this.dispatchEvent(
+      new CustomEvent('tool-changed', {
+        detail: { tool: this.tool },
+        bubbles: true,
+        composed: true
+      })
+    );
+  }
+
+  /** Deletes the currently selected item (also bound to the Delete key). */
+  deleteSelection() {
+    if (!this._itemControls || !this._workingModel) return;
+
+    const { type, id } = this._itemControls;
+    const scene = this._sceneFacade();
+
+    if (type === 'ITEM') scene.deleteViewItem(id);
+    else if (type === 'CONNECTOR') scene.deleteConnector(id);
+    else if (type === 'RECTANGLE') scene.deleteRectangle(id);
+    else if (type === 'TEXTBOX') scene.deleteTextBox(id);
+
+    this._setItemControls(null);
+  }
+
+  // --- model / scene management ---
+
   _ingestModel() {
     this._modelError = null;
     this._scene = null;
-    this._parsedModel = null;
+    this._workingModel = null;
+    this._itemControls = null;
+    this._mode = getStartingMode(this.editorMode);
+    this._prevModeType = null;
+    this._undoStack = [];
+    this._redoStack = [];
+    this._historyOpen = false;
 
     if (!this.model) return;
 
@@ -315,11 +554,283 @@ export class LitIsoflow extends LitElement {
     }
 
     try {
-      this._parsedModel = result.data;
-      this._scene = deriveScene(result.data, this.viewId || undefined);
+      this._workingModel = structuredClone(result.data);
+      this._resyncScene();
     } catch (error) {
       this._modelError = error.message;
     }
+  }
+
+  _resyncScene() {
+    this._scene = deriveScene(this._workingModel, this.viewId || undefined);
+  }
+
+  _afterMutation() {
+    this._resyncScene();
+    this.requestUpdate();
+
+    clearTimeout(this._modelUpdateTimer);
+    this._modelUpdateTimer = setTimeout(() => {
+      this._historyOpen = false;
+      this.dispatchEvent(
+        new CustomEvent('model-updated', {
+          detail: { model: this.getModel() },
+          bubbles: true,
+          composed: true
+        })
+      );
+    }, 250);
+  }
+
+  /**
+   * Scene facade handed to interaction modes: derived scene data plus
+   * mutation methods bound to the working model (mirrors Isoflow's useScene).
+   */
+  _sceneFacade() {
+    const self = this;
+    const viewId = this._scene.view.id;
+
+    const mutate = (fn, ...args) => {
+      self._beforeMutation();
+      fn(self._workingModel, viewId, ...args);
+      self._afterMutation();
+    };
+
+    return {
+      get items() {
+        return self._scene.items;
+      },
+      get connectors() {
+        return self._scene.connectors;
+      },
+      get rectangles() {
+        return self._scene.rectangles;
+      },
+      get textBoxes() {
+        return self._scene.textBoxes;
+      },
+      get colors() {
+        return self._scene.colors;
+      },
+      get currentView() {
+        return self._scene.view;
+      },
+      createViewItem: (item) => {
+        return mutate(mutations.createViewItem, item);
+      },
+      updateViewItem: (id, updates) => {
+        return mutate(mutations.updateViewItem, id, updates);
+      },
+      deleteViewItem: (id) => {
+        return mutate(mutations.deleteViewItem, id);
+      },
+      createModelItem: (item) => {
+        self._beforeMutation();
+        mutations.createModelItem(self._workingModel, item);
+        self._afterMutation();
+      },
+      updateModelItem: (id, updates) => {
+        self._beforeMutation();
+        mutations.updateModelItem(self._workingModel, id, updates);
+        self._afterMutation();
+      },
+      createConnector: (connector) => {
+        return mutate(mutations.createConnector, connector);
+      },
+      updateConnector: (id, updates) => {
+        return mutate(mutations.updateConnector, id, updates);
+      },
+      deleteConnector: (id) => {
+        return mutate(mutations.deleteConnector, id);
+      },
+      createRectangle: (rectangle) => {
+        return mutate(mutations.createRectangle, rectangle);
+      },
+      updateRectangle: (id, updates) => {
+        return mutate(mutations.updateRectangle, id, updates);
+      },
+      deleteRectangle: (id) => {
+        return mutate(mutations.deleteRectangle, id);
+      },
+      createTextBox: (textBox) => {
+        return mutate(mutations.createTextBox, textBox);
+      },
+      updateTextBox: (id, updates) => {
+        return mutate(mutations.updateTextBox, id, updates);
+      },
+      deleteTextBox: (id) => {
+        return mutate(mutations.deleteTextBox, id);
+      },
+      changeLayerOrder: (payload) => {
+        return mutate(mutations.changeLayerOrder, payload);
+      }
+    };
+  }
+
+  // --- interaction pipeline ---
+
+  _uiStateFacade() {
+    const self = this;
+
+    return {
+      get mode() {
+        return self._mode;
+      },
+      get mouse() {
+        return self._mouse;
+      },
+      get scroll() {
+        return { position: self._scroll };
+      },
+      get itemControls() {
+        return self._itemControls;
+      },
+      actions: {
+        setMode: (mode) => {
+          self._mode = mode;
+        },
+        setScroll: ({ position }) => {
+          self._animated = false;
+          self._scroll = position;
+        },
+        setItemControls: (itemControls) => {
+          self._setItemControls(itemControls);
+        },
+        setCursor: (cursor) => {
+          self._cursorCss = cursor;
+        }
+      }
+    };
+  }
+
+  _makeTouchHandler(type) {
+    return (event) => {
+      if (!event.touches?.[0]) return;
+
+      this._handleMouseEvent({
+        clientX: Math.floor(event.touches[0].clientX),
+        clientY: Math.floor(event.touches[0].clientY),
+        type,
+        target: event.target,
+        composedPath: () => event.composedPath()
+      });
+    };
+  }
+
+  _handleMouseEvent(event) {
+    if (!this._scene || this._mode.type === 'INTERACTIONS_DISABLED') return;
+
+    const mode = interactionModes[this._mode.type];
+    if (!mode) return;
+
+    const modeFunction = mode[event.type];
+
+    this._mouse = getMouse({
+      interactiveElement: this,
+      zoom: this._zoom,
+      scroll: { position: this._scroll },
+      lastMouse: this._mouse,
+      mouseEvent: event,
+      rendererSize: { width: this.clientWidth, height: this.clientHeight }
+    });
+
+    const state = {
+      uiState: this._uiStateFacade(),
+      scene: this._sceneFacade(),
+      isRendererInteraction: event.composedPath
+        ? event.composedPath().includes(this)
+        : event.target === this
+    };
+
+    const modeTypeAtStart = this._mode.type;
+
+    if (this._prevModeType !== modeTypeAtStart) {
+      const prevMode = this._prevModeType
+        ? interactionModes[this._prevModeType]
+        : null;
+
+      prevMode?.exit?.(state);
+      mode.entry?.(state);
+    }
+
+    modeFunction?.(state);
+    // Mode changes made BY the mode function are picked up on the next event
+    // (entry/exit run then), matching Isoflow's interaction manager.
+    this._prevModeType = modeTypeAtStart;
+
+    if (event.type === 'mouseup') {
+      this._historyOpen = false;
+    }
+
+    this.requestUpdate();
+  }
+
+  _handleKeyDown(event) {
+    if (this.editorMode !== 'EDITABLE') return;
+
+    // Resolve the real focused element through nested shadow roots:
+    // document.activeElement only yields the outermost host (e.g. a
+    // Web Awesome input would report as WA-INPUT, hiding its inner <input>).
+    let active = document.activeElement;
+    while (active?.shadowRoot?.activeElement) {
+      active = active.shadowRoot.activeElement;
+    }
+
+    if (
+      active &&
+      (active.tagName === 'INPUT' ||
+        active.tagName === 'TEXTAREA' ||
+        active.isContentEditable)
+    )
+      return;
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      if (event.shiftKey) this.redo();
+      else this.undo();
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+      event.preventDefault();
+      this.redo();
+      return;
+    }
+
+    if (
+      (event.key === 'Delete' || event.key === 'Backspace') &&
+      this._itemControls
+    ) {
+      event.preventDefault();
+      this.deleteSelection();
+    }
+  }
+
+  _setMode(mode) {
+    const state = {
+      uiState: this._uiStateFacade(),
+      scene: this._sceneFacade(),
+      isRendererInteraction: true
+    };
+
+    if (this._prevModeType && this._prevModeType !== mode.type) {
+      interactionModes[this._prevModeType]?.exit?.(state);
+    }
+
+    this._mode = mode;
+    interactionModes[mode.type]?.entry?.(state);
+    this._prevModeType = mode.type;
+  }
+
+  _setItemControls(itemControls) {
+    this._itemControls = itemControls;
+    this.dispatchEvent(
+      new CustomEvent('item-selected', {
+        detail: { item: itemControls },
+        bubbles: true,
+        composed: true
+      })
+    );
   }
 
   _setZoom(zoom) {
@@ -340,46 +851,16 @@ export class LitIsoflow extends LitElement {
     );
   }
 
-  get _interactive() {
-    return this.editorMode !== 'NON_INTERACTIVE';
-  }
-
   _onWheel(event) {
-    if (!this._interactive) return;
+    if (this._mode.type === 'INTERACTIONS_DISABLED') return;
 
     event.preventDefault();
-    this._setZoom(event.deltaY > 0 ? decrementZoom(this._zoom) : incrementZoom(this._zoom));
+    this._setZoom(
+      event.deltaY > 0 ? decrementZoom(this._zoom) : incrementZoom(this._zoom)
+    );
   }
 
-  _onPointerDown(event) {
-    if (!this._interactive || event.button !== 0) return;
-
-    this._panPointerId = event.pointerId;
-    this._lastPanPosition = { x: event.clientX, y: event.clientY };
-    this._animated = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  _onPointerMove(event) {
-    if (event.pointerId !== this._panPointerId || !this._lastPanPosition) return;
-
-    const delta = {
-      x: event.clientX - this._lastPanPosition.x,
-      y: event.clientY - this._lastPanPosition.y
-    };
-    this._lastPanPosition = { x: event.clientX, y: event.clientY };
-    this._scroll = {
-      x: this._scroll.x + delta.x,
-      y: this._scroll.y + delta.y
-    };
-  }
-
-  _onPointerUp(event) {
-    if (event.pointerId !== this._panPointerId) return;
-
-    this._panPointerId = null;
-    this._lastPanPosition = null;
-  }
+  // --- rendering ---
 
   /**
    * CSS for an isometrically projected surface spanning [from, to],
@@ -425,17 +906,12 @@ export class LitIsoflow extends LitElement {
 
     return html`
       <div
-        class="container ${this._animated ? 'animated' : ''} ${this._interactive
-          ? 'pannable'
-          : ''} ${this._panPointerId !== null ? 'panning' : ''}"
+        class="container ${this._animated ? 'animated' : ''}"
         style=${styleMap({
-          backgroundColor: this.backgroundColor || DIAGRAM_BACKGROUND_COLOR
+          backgroundColor: this.backgroundColor || DIAGRAM_BACKGROUND_COLOR,
+          cursor: this._cursorCss
         })}
         @wheel=${this._onWheel}
-        @pointerdown=${this._onPointerDown}
-        @pointermove=${this._onPointerMove}
-        @pointerup=${this._onPointerUp}
-        @pointercancel=${this._onPointerUp}
       >
         <div class="scene-layer" style=${styleMap(layerStyles)}>
           ${this._scene.rectangles.map((rectangle) => {
@@ -443,6 +919,11 @@ export class LitIsoflow extends LitElement {
           })}
         </div>
         ${this.showGrid ? this._renderGrid() : nothing}
+        ${this._mode.showCursor
+          ? html`<div class="scene-layer" style=${styleMap(layerStyles)}>
+              ${this._renderTileCursor()}
+            </div>`
+          : nothing}
         <div class="scene-layer" style=${styleMap(layerStyles)}>
           ${this._scene.connectors.map((connector) => {
             return this._renderConnector(connector);
@@ -462,6 +943,9 @@ export class LitIsoflow extends LitElement {
           ${[...this._scene.items].reverse().map((item) => {
             return this._renderNode(item);
           })}
+        </div>
+        <div class="scene-layer controls" style=${styleMap(layerStyles)}>
+          ${this._renderTransformControls()}
         </div>
       </div>
     `;
@@ -484,6 +968,30 @@ export class LitIsoflow extends LitElement {
           }px`
         })}
       ></div>
+    `;
+  }
+
+  _renderTileCursor() {
+    const tile = this._mouse.position.tile;
+    const { styles, pxSize } = this._projectionStyles(tile, tile);
+
+    return html`
+      <div class="projected" style=${styleMap(styles)}>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 ${pxSize.width} ${pxSize.height}"
+          width="${pxSize.width}px"
+          height="${pxSize.height}px"
+        >
+          <rect
+            width=${pxSize.width}
+            height=${pxSize.height}
+            fill=${TRANSFORM_CONTROLS_COLOR}
+            fill-opacity="0.5"
+            rx=${10 * this._zoom}
+          ></rect>
+        </svg>
+      </div>
     `;
   }
 
@@ -634,10 +1142,10 @@ export class LitIsoflow extends LitElement {
   }
 
   _renderNode(item) {
-    const modelItem = resolveModelItem(this._parsedModel, item.id);
+    const modelItem = resolveModelItem(this._workingModel, item.id);
     if (!modelItem) return nothing;
 
-    const icon = resolveIcon(this._parsedModel, modelItem.icon);
+    const icon = resolveIcon(this._workingModel, modelItem.icon);
     const position = getTilePosition({ tile: item.tile, origin: 'BOTTOM' });
     const labelHeight = item.labelHeight ?? DEFAULT_LABEL_HEIGHT;
     const labelAnchorY = PROJECTED_TILE_SIZE.height / 2;
@@ -723,6 +1231,183 @@ export class LitIsoflow extends LitElement {
         alt=${`icon-${icon.id}`}
         style=${styleMap({ width: toPx(PROJECTED_TILE_SIZE.width * 0.8) })}
       />
+    `;
+  }
+
+  // --- transform controls (selection visuals) ---
+
+  _renderTransformControls() {
+    if (!this._itemControls || this.editorMode !== 'EDITABLE') return nothing;
+
+    const { type, id } = this._itemControls;
+
+    try {
+      if (type === 'CONNECTOR') {
+        const connector = this._scene.connectors.find((c) => {
+          return c.id === id;
+        });
+        if (!connector) return nothing;
+
+        return connector.anchors.map((anchor) => {
+          let tile;
+          try {
+            tile = getAnchorTile(anchor, this._scene.view);
+          } catch {
+            return nothing;
+          }
+
+          const position = getTilePosition({ tile });
+
+          return html`
+            <div
+              class="projected connector-anchor"
+              style=${styleMap({
+                left: toPx(position.x - TRANSFORM_ANCHOR_SIZE / 2),
+                top: toPx(position.y - TRANSFORM_ANCHOR_SIZE / 2),
+                width: toPx(TRANSFORM_ANCHOR_SIZE),
+                height: toPx(TRANSFORM_ANCHOR_SIZE),
+                transform: getIsoProjectionCss()
+              })}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 ${TRANSFORM_ANCHOR_SIZE} ${TRANSFORM_ANCHOR_SIZE}"
+                width="${TRANSFORM_ANCHOR_SIZE}px"
+                height="${TRANSFORM_ANCHOR_SIZE}px"
+              >
+                <circle
+                  cx=${TRANSFORM_ANCHOR_SIZE / 2}
+                  cy=${TRANSFORM_ANCHOR_SIZE / 2}
+                  r=${TRANSFORM_ANCHOR_SIZE / 2 - 4}
+                  fill="#ffffff"
+                  stroke="#000000"
+                  stroke-width="4"
+                ></circle>
+              </svg>
+            </div>
+          `;
+        });
+      }
+
+      if (type === 'ITEM') {
+        const item = this._scene.items.find((i) => {
+          return i.id === id;
+        });
+        if (!item) return nothing;
+
+        return this._renderTransformBox(item.tile, item.tile);
+      }
+
+      if (type === 'RECTANGLE') {
+        const rectangle = this._scene.rectangles.find((r) => {
+          return r.id === id;
+        });
+        if (!rectangle) return nothing;
+
+        return this._renderTransformBox(rectangle.from, rectangle.to, (anchor) => {
+          this._mode = {
+            type: 'RECTANGLE.TRANSFORM',
+            showCursor: false,
+            id,
+            selectedAnchor: anchor
+          };
+        });
+      }
+
+      if (type === 'TEXTBOX') {
+        const textBox = this._scene.textBoxes.find((t) => {
+          return t.id === id;
+        });
+        if (!textBox) return nothing;
+
+        const endTile = getTextBoxEndTile(textBox, textBox.size);
+
+        return this._renderTransformBox(textBox.tile, {
+          x: Math.ceil(endTile.x),
+          y: Math.ceil(endTile.y)
+        });
+      }
+    } catch {
+      return nothing;
+    }
+
+    return nothing;
+  }
+
+  _renderTransformBox(from, to, onAnchorMouseDown = null) {
+    const strokeWidth = 2;
+    const { styles, pxSize } = this._projectionStyles(from, to);
+
+    const anchors = onAnchorMouseDown
+      ? Object.entries(convertBoundsToNamedAnchors(getBoundingBox([from, to]))).map(
+          ([name, tile], i) => {
+            return {
+              name,
+              position: getTilePosition({
+                tile,
+                origin: outermostCornerPositions[i]
+              })
+            };
+          }
+        )
+      : [];
+
+    return html`
+      <div class="projected" style=${styleMap({ ...styles, pointerEvents: 'none' })}>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 ${pxSize.width} ${pxSize.height}"
+          width="${pxSize.width}px"
+          height="${pxSize.height}px"
+        >
+          <g transform="translate(${strokeWidth}, ${strokeWidth})">
+            <rect
+              width=${pxSize.width - strokeWidth * 2}
+              height=${pxSize.height - strokeWidth * 2}
+              fill="none"
+              stroke=${TRANSFORM_CONTROLS_COLOR}
+              stroke-dasharray="${strokeWidth * 2} ${strokeWidth * 2}"
+              stroke-width=${strokeWidth}
+              stroke-linecap="round"
+            ></rect>
+          </g>
+        </svg>
+      </div>
+      ${anchors.map(({ name, position }) => {
+        return html`
+          <div
+            class="transform-anchor"
+            style=${styleMap({
+              position: 'absolute',
+              left: toPx(position.x - TRANSFORM_ANCHOR_SIZE / 2),
+              top: toPx(position.y - TRANSFORM_ANCHOR_SIZE / 2),
+              width: toPx(TRANSFORM_ANCHOR_SIZE),
+              height: toPx(TRANSFORM_ANCHOR_SIZE),
+              transform: getIsoProjectionCss(),
+              transformOrigin: 'top left'
+            })}
+            @mousedown=${() => {
+              return onAnchorMouseDown(name);
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 ${TRANSFORM_ANCHOR_SIZE} ${TRANSFORM_ANCHOR_SIZE}"
+              width="${TRANSFORM_ANCHOR_SIZE}px"
+              height="${TRANSFORM_ANCHOR_SIZE}px"
+            >
+              <circle
+                cx=${TRANSFORM_ANCHOR_SIZE / 2}
+                cy=${TRANSFORM_ANCHOR_SIZE / 2}
+                r=${TRANSFORM_ANCHOR_SIZE / 2 - 2}
+                fill="#ffffff"
+                stroke=${TRANSFORM_CONTROLS_COLOR}
+                stroke-width="2"
+              ></circle>
+            </svg>
+          </div>
+        `;
+      })}
     `;
   }
 }

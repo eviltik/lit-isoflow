@@ -220,6 +220,160 @@ export const getConnectorPath = ({ anchors, view }) => {
   return { tiles, rectangle };
 };
 
+/**
+ * Builds the next mouse state (screen + tile position, delta, mousedown)
+ * from a raw mouse event. Ported from Isoflow's getMouse.
+ */
+export const getMouse = ({
+  interactiveElement,
+  zoom,
+  scroll,
+  lastMouse,
+  mouseEvent,
+  rendererSize
+}) => {
+  const componentOffset = interactiveElement.getBoundingClientRect();
+  const offset = {
+    x: componentOffset?.left ?? 0,
+    y: componentOffset?.top ?? 0
+  };
+
+  const mousePosition = {
+    x: mouseEvent.clientX - offset.x,
+    y: mouseEvent.clientY - offset.y
+  };
+
+  const newPosition = {
+    screen: mousePosition,
+    tile: screenToIso({ mouse: mousePosition, zoom, scroll, rendererSize })
+  };
+
+  const newDelta = {
+    screen: CoordsUtils.subtract(newPosition.screen, lastMouse.position.screen),
+    tile: CoordsUtils.subtract(newPosition.tile, lastMouse.position.tile)
+  };
+
+  const getMousedown = () => {
+    switch (mouseEvent.type) {
+      case 'mousedown':
+        return newPosition;
+      case 'mousemove':
+        return lastMouse.mousedown;
+      default:
+        return null;
+    }
+  };
+
+  return {
+    position: newPosition,
+    delta: newDelta,
+    mousedown: getMousedown()
+  };
+};
+
+export const hasMovedTile = (mouse) => {
+  if (!mouse.delta) return false;
+
+  return !CoordsUtils.isEqual(mouse.delta.tile, CoordsUtils.zero());
+};
+
+export const getTextBoxEndTile = (textBox, size) => {
+  if (textBox.orientation === 'X') {
+    return CoordsUtils.add(textBox.tile, { x: size.width, y: 0 });
+  }
+
+  return CoordsUtils.add(textBox.tile, { x: 0, y: -size.width });
+};
+
+/**
+ * Hit-testing: returns the topmost item at a tile
+ * ({ type: 'ITEM'|'TEXTBOX'|'CONNECTOR'|'RECTANGLE', id }) or null.
+ * `scene` is a derived scene (see scene.js).
+ */
+export const getItemAtTile = ({ tile, scene }) => {
+  const viewItem = scene.items.find((item) => {
+    return CoordsUtils.isEqual(item.tile, tile);
+  });
+
+  if (viewItem) return { type: 'ITEM', id: viewItem.id };
+
+  const textBox = scene.textBoxes.find((tb) => {
+    const textBoxTo = getTextBoxEndTile(tb, tb.size);
+    const textBoxBounds = getBoundingBox([
+      tb.tile,
+      {
+        x: Math.ceil(textBoxTo.x),
+        y: tb.orientation === 'X' ? Math.ceil(textBoxTo.y) : Math.floor(textBoxTo.y)
+      }
+    ]);
+
+    return isWithinBounds(tile, textBoxBounds);
+  });
+
+  if (textBox) return { type: 'TEXTBOX', id: textBox.id };
+
+  const connector = scene.connectors.find((con) => {
+    return con.path.tiles.find((pathTile) => {
+      const globalPathTile = connectorPathTileToGlobal(
+        pathTile,
+        con.path.rectangle.from
+      );
+
+      return CoordsUtils.isEqual(globalPathTile, tile);
+    });
+  });
+
+  if (connector) return { type: 'CONNECTOR', id: connector.id };
+
+  const rectangle = scene.rectangles.find(({ from, to }) => {
+    return isWithinBounds(tile, [from, to]);
+  });
+
+  if (rectangle) return { type: 'RECTANGLE', id: rectangle.id };
+
+  return null;
+};
+
+export const getAnchorAtTile = (tile, anchors) => {
+  return anchors.find((anchor) => {
+    return Boolean(anchor.ref.tile && CoordsUtils.isEqual(anchor.ref.tile, tile));
+  });
+};
+
+export const getAnchorParent = (anchorId, connectors) => {
+  const connector = connectors.find((con) => {
+    return con.anchors.find((anchor) => {
+      return anchor.id === anchorId;
+    });
+  });
+
+  if (!connector) {
+    throw new Error(`Could not find connector with anchor id ${anchorId}`);
+  }
+
+  return connector;
+};
+
+export const getConnectorsByViewItem = (viewItemId, connectors) => {
+  return connectors.filter((connector) => {
+    return connector.anchors.find((anchor) => {
+      return anchor.ref.item === viewItemId;
+    });
+  });
+};
+
+/** Corner tile origins matching BOTTOM_LEFT, BOTTOM_RIGHT, TOP_RIGHT, TOP_LEFT. */
+export const outermostCornerPositions = ['BOTTOM', 'RIGHT', 'TOP', 'LEFT'];
+
+export const convertBoundsToNamedAnchors = (boundingBox) => {
+  return {
+    BOTTOM_LEFT: boundingBox[0],
+    BOTTOM_RIGHT: boundingBox[1],
+    TOP_RIGHT: boundingBox[2],
+    TOP_LEFT: boundingBox[3]
+  };
+};
+
 /** Converts a tile from a connector path's local space back to global tile space. */
 export const connectorPathTileToGlobal = (tile, origin) => {
   return CoordsUtils.subtract(
