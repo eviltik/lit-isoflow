@@ -14,7 +14,7 @@
   "scripts": {
     "demo": "vite demo --open",
     "build:demo": "vite build demo --base=./ --outDir=../dist-demo --emptyOutDir",
-    "test": "node --test 'test/**/*.test.js'",
+    "test": "node --test",
     "lint": "eslint src demo test",
     "format": "prettier --write 'src/**/*.js' 'test/**/*.js' 'demo/*.js' 'demo/*.html' '*.md' eslint.config.js",
     "format:check": "prettier --check 'src/**/*.js' 'test/**/*.js' 'demo/*.js'",
