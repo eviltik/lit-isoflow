@@ -14,6 +14,7 @@ import { LitElement, html, svg, css, nothing } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { repeat } from 'lit/directives/repeat.js';
+import { guard } from 'lit/directives/guard.js';
 import {
   PROJECTED_TILE_SIZE,
   UNPROJECTED_TILE_SIZE,
@@ -1435,7 +1436,28 @@ export class LitIsoflow extends LitElement {
           ${repeat(
             visibleItems,
             (item) => item.id,
-            (item) => this._renderNode(item)
+            (item) => {
+              // A node's rendering depends on exactly four things: its view item
+              // (tile, labelHeight), its model item (name, description, icon id),
+              // the icon that resolves to, and the theme. Nothing else — zoom and
+              // scroll live on the layer's CSS transform, and selection is drawn
+              // in the controls layer above.
+              //
+              // Mutations replace these objects rather than editing them in place
+              // ({ ...item, ...updates }), so identity is a sound change signal:
+              // guard() rebuilds a node's template only when one of the four
+              // actually changed. Without it, every node in the view was rebuilt
+              // on every frame — 163 ms per frame at 10 000 nodes, whether or not
+              // anything had moved.
+              const modelItem = resolveModelItem(this._workingModel, item.id);
+              const icon = modelItem
+                ? resolveIcon(this._workingModel, modelItem.icon)
+                : undefined;
+
+              return guard([item, modelItem, icon, this._theme], () =>
+                this._renderNode(item)
+              );
+            }
           )}
         </div>
         <div class="scene-layer controls" style=${styleMap(layerStyles)}>
