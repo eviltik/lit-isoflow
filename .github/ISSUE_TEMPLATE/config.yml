@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Live demo
+    url: https://eviltik.github.io/lit-isoflow/
+    about: Try the editor before filing an issue — it may already answer your question.
+  - name: Upstream Isoflow
+    url: https://github.com/markmanx/isoflow
+    about: The original React implementation this project is ported from.

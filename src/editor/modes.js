@@ -28,10 +28,7 @@ import { VIEW_ITEM_DEFAULTS } from '../config.js';
 const getAnchorOrdering = (anchor, connector, view) => {
   const anchorTile = getAnchorTile(anchor, view);
   const index = connector.path.tiles.findIndex((pathTile) => {
-    const globalTile = connectorPathTileToGlobal(
-      pathTile,
-      connector.path.rectangle.from
-    );
+    const globalTile = connectorPathTileToGlobal(pathTile, connector.path.rectangle.from);
     return CoordsUtils.isEqual(globalTile, anchorTile);
   });
 
@@ -61,7 +58,7 @@ const getAnchor = (connectorId, tile, scene) => {
       .sort((a, b) => {
         return a.ordering - b.ordering;
       })
-      .map(({ ordering, ...anch }) => {
+      .map(({ ordering: _ordering, ...anch }) => {
         return anch;
       });
 
@@ -264,10 +261,7 @@ export const Pan = {
 
     if (uiState.mouse.mousedown !== null && uiState.mouse.delta?.screen) {
       uiState.actions.setScroll({
-        position: CoordsUtils.add(
-          uiState.scroll.position,
-          uiState.mouse.delta.screen
-        )
+        position: CoordsUtils.add(uiState.scroll.position, uiState.mouse.delta.screen)
       });
     }
   },
@@ -470,10 +464,7 @@ export const DrawRectangle = {
 
 export const TransformRectangle = {
   mousemove: ({ uiState, scene }) => {
-    if (
-      uiState.mode.type !== 'RECTANGLE.TRANSFORM' ||
-      !hasMovedTile(uiState.mouse)
-    )
+    if (uiState.mode.type !== 'RECTANGLE.TRANSFORM' || !hasMovedTile(uiState.mouse))
       return;
 
     if (uiState.mode.selectedAnchor) {

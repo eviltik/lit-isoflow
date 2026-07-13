@@ -1,5 +1,10 @@
 # lit-isoflow
 
+[![CI](https://github.com/eviltik/lit-isoflow/actions/workflows/ci.yml/badge.svg)](https://github.com/eviltik/lit-isoflow/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/lit-isoflow.svg)](https://www.npmjs.com/package/lit-isoflow)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![no dependencies but three](https://img.shields.io/badge/deps-lit%20%C2%B7%20zod%20%C2%B7%20pathfinding-informational)](package.json)
+
 **Viewer and editor for isometric infrastructure diagrams**, as a single Lit
 web component — a React-free port of
 [Isoflow](https://github.com/markmanx/isoflow) / FossFLOW.
@@ -7,15 +12,31 @@ web component — a React-free port of
 The model format (JSON) is interchangeable with Isoflow/FossFLOW exports: diagrams
 created there render here, and vice versa.
 
+### ▶ [Try the live demo](https://eviltik.github.io/lit-isoflow/)
+
+[![lit-isoflow editor](docs/assets/screenshot-editor.png)](https://eviltik.github.io/lit-isoflow/)
+
+## Why
+
+The upstream Isoflow is an excellent piece of work, but it is a React application:
+React, MUI, zustand, immer, gsap, chroma-js, react-quill — over 1 MB of
+dependencies before your own code. If your app is not a React app, you cannot
+embed it.
+
+`lit-isoflow` keeps the parts that matter — the isometric projection, the A\*
+connector routing, the model format — and rewrites the view layer as a standard
+web component. Three runtime dependencies (`lit`, `zod`, `pathfinding`), roughly
+140 kB bundled, and it drops into any framework, or none.
+
 ## One component, three modes
 
 The `editor-mode` attribute selects what `<lit-isoflow>` is:
 
-| Mode                        | What you get | Typical use |
-| --------------------------- | ------------ | ----------- |
-| `EXPLORABLE_READONLY` *(default)* | **Viewer** — pan, zoom, fit-to-view; the model is never mutated | embedding a diagram in docs, dashboards, read-only apps |
-| `EDITABLE`                  | **Editor** — everything below: tools, selection, drag, drawing, undo/redo, property API | diagram authoring UI |
-| `NON_INTERACTIVE`           | **Static rendering** — no listeners at all | screenshots, PDF/PNG export pipelines, thumbnails |
+| Mode                              | What you get                                                                            | Typical use                                             |
+| --------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `EXPLORABLE_READONLY` _(default)_ | **Viewer** — pan, zoom, fit-to-view; the model is never mutated                         | embedding a diagram in docs, dashboards, read-only apps |
+| `EDITABLE`                        | **Editor** — everything below: tools, selection, drag, drawing, undo/redo, property API | diagram authoring UI                                    |
+| `NON_INTERACTIVE`                 | **Static rendering** — no listeners at all                                              | screenshots, PDF/PNG export pipelines, thumbnails       |
 
 ```html
 <!-- Viewer -->
@@ -40,6 +61,8 @@ text boxes, node labels.
 
 ```bash
 npm install lit-isoflow
+# not on npm yet? install straight from GitHub:
+npm install github:eviltik/lit-isoflow
 ```
 
 ## Usage
@@ -72,14 +95,14 @@ npm install lit-isoflow
 
 ### Properties / attributes
 
-| Property          | Attribute          | Default                  | Description                                        |
-| ----------------- | ------------------ | ------------------------ | -------------------------------------------------- |
-| `model`           | —                  | `null`                   | Diagram model (Isoflow/FossFLOW JSON)              |
-| `viewId`          | `view-id`          | first view               | View to display                                    |
-| `editorMode`      | `editor-mode`      | `EXPLORABLE_READONLY`    | `EDITABLE`, `EXPLORABLE_READONLY` (pan/zoom) or `NON_INTERACTIVE` |
-| `showGrid`        | `show-grid`        | `true`                   | Show the isometric grid                            |
-| `backgroundColor` | `background-color` | `#f6faff`                | Diagram background                                 |
-| `fitToView`       | `fit-to-view`      | `false`                  | Fit the view in the viewport on load               |
+| Property          | Attribute          | Default               | Description                                                       |
+| ----------------- | ------------------ | --------------------- | ----------------------------------------------------------------- |
+| `model`           | —                  | `null`                | Diagram model (Isoflow/FossFLOW JSON)                             |
+| `viewId`          | `view-id`          | first view            | View to display                                                   |
+| `editorMode`      | `editor-mode`      | `EXPLORABLE_READONLY` | `EDITABLE`, `EXPLORABLE_READONLY` (pan/zoom) or `NON_INTERACTIVE` |
+| `showGrid`        | `show-grid`        | `true`                | Show the isometric grid                                           |
+| `backgroundColor` | `background-color` | `#f6faff`             | Diagram background                                                |
+| `fitToView`       | `fit-to-view`      | `false`               | Fit the view in the viewport on load                              |
 
 ### Methods
 
@@ -91,10 +114,6 @@ npm install lit-isoflow
 - `deleteSelection()` — delete the selected item (also bound to the Delete key)
 - `undo()` / `redo()` — gesture-level history (also bound to Ctrl+Z / Ctrl+Y /
   Ctrl+Shift+Z); `canUndo` / `canRedo` getters
-
-Keyboard (EDITABLE): Delete removes the selection, Ctrl+Z / Ctrl+Y undo/redo,
-and holding **Shift** or **Space** pans temporarily — the active tool and
-selection are restored on release.
 - `getModel()` — deep snapshot of the current (possibly edited) model
 - `getSelectedItem()` / `updateItem()` / `updateViewItem()` / `updateConnector()`
   / `updateRectangle()` / `updateTextBox()` — property-panel API, see
@@ -107,6 +126,17 @@ selection are restored on release.
   `'transparent'`), `margin` (tiles around the content, default 0.5).
   Icon URLs must be data URIs or same-origin (external images would taint
   the canvas); isopack icons are data URIs, so they just work.
+
+### Keyboard (EDITABLE)
+
+| Key                           | Action                                                     |
+| ----------------------------- | ---------------------------------------------------------- |
+| Hold **Shift** or **Space**   | Pan; the active tool and selection are restored on release |
+| **Delete** / **Backspace**    | Delete the selection                                       |
+| **Ctrl+Z**                    | Undo                                                       |
+| **Ctrl+Y** / **Ctrl+Shift+Z** | Redo                                                       |
+
+Shortcuts are ignored while typing in an input, including inside a shadow root.
 
 ### Events
 
@@ -181,6 +211,7 @@ diagram.addEventListener('item-selected', () => {
 ```
 
 Notes:
+
 - Each keystroke burst (pauses < 250 ms) collapses into one undo step; debounce
   `onUpdate` yourself if you want coarser steps.
 - Descriptions are rendered as-is in node labels — sanitize if models come from
@@ -209,32 +240,52 @@ Isoflow); check the isopacks repository for per-collection licences. That is
 why `@isoflow/isopacks` is a dev-dependency of the demo, not a dependency of
 this package.
 
-> Note: node `description` fields contain HTML (rich text in Isoflow) and are
-> rendered as-is. Only feed models from trusted sources.
+## Security
 
-## Demo
+Node `description` fields hold **HTML** (that is what Isoflow's rich text editor
+produces) and are rendered as-is inside node labels. Sanitize them if your models
+come from untrusted sources.
+
+## Development
 
 ```bash
-npm install
-npm run demo
+git clone https://github.com/eviltik/lit-isoflow
+cd lit-isoflow
+pnpm install
+pnpm run demo     # the demo doubles as the manual test bench
+pnpm run check    # lint + formatting + unit tests
 ```
+
+There is no build step: `src/` is plain ES modules with JSDoc types, and that is
+what gets published. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Design notes / deviations from Isoflow
 
-- No React, MUI, zustand, immer, gsap or chroma-js. The geometry engine
-  (projection, A* connector routing, fit-to-view) is ported as-is; the view
-  layer is rewritten with Lit templates, animations use CSS transitions and
-  color variants use an HSL approximation of chroma's brighten/darken.
-- The scene (connector paths, textbox sizes) is derived from the model as a
-  pure function (`deriveScene`) instead of being kept in sync in a store.
-- Invalid connectors are skipped instead of deleted from the model.
+- **No React, MUI, zustand, immer, gsap, chroma-js or dom-to-image.** The geometry
+  engine (projection, A\* connector routing, fit-to-view) is ported as-is; the view
+  layer is rewritten with Lit templates, animations use CSS transitions, colour
+  variants use an HSL approximation of chroma's brighten/darken, and PNG export
+  goes through an SVG `foreignObject`.
+- The scene (connector paths, textbox sizes) is derived from the model as a pure
+  function (`deriveScene`) instead of being kept in sync inside a store.
 - Selected-connector anchors render above the nodes layer and take hit-test
   priority, so endpoints sitting on a node can be grabbed and re-anchored
   (upstream hides them behind nodes and always drags the node).
-- Gesture-level undo/redo (snapshot per mouse gesture, 50 steps) — absent
-  upstream.
+- Gesture-level undo/redo — absent upstream.
+- Invalid connectors are skipped rather than deleted from the model.
+- The Lasso mode is not ported: it is entirely commented out upstream.
 
-## License
+## Credits
 
-MIT — portions derived from [Isoflow](https://github.com/markmanx/isoflow) (MIT)
-and FossFLOW (MIT).
+This is a port, and the hard thinking — the isometric projection, the connector
+routing, the model format, the icon packs — comes from the original work:
+
+- [Isoflow](https://github.com/markmanx/isoflow) by Mark Mankarious (MIT)
+- [FossFLOW](https://github.com/stan-smith/FossFLOW) by Stan Smith (MIT), which
+  keeps the community edition alive
+- [@isoflow/isopacks](https://www.npmjs.com/package/@isoflow/isopacks) for the icons
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). Portions derived from Isoflow (MIT) and FossFLOW
+(MIT). Icon artwork in the demo belongs to its respective owners.

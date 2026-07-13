@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an idea for lit-isoflow
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case rather than the implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      description: >
+        lit-isoflow deliberately stays a lean canvas (lit + zod + pathfinding).
+        UI kits, rich text editors and icon packs belong to the host app.
+      options:
+        - label: This can be implemented without adding a runtime dependency to the component
+        - label: This keeps the model JSON interchangeable with Isoflow/FossFLOW

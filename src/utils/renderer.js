@@ -314,10 +314,7 @@ export const getItemAtTile = ({ tile, scene }) => {
 
   const connector = scene.connectors.find((con) => {
     return con.path.tiles.find((pathTile) => {
-      const globalPathTile = connectorPathTileToGlobal(
-        pathTile,
-        con.path.rectangle.from
-      );
+      const globalPathTile = connectorPathTileToGlobal(pathTile, con.path.rectangle.from);
 
       return CoordsUtils.isEqual(globalPathTile, tile);
     });

@@ -5,11 +5,7 @@
  * Equivalent to Isoflow's syncScene/useScene, rewritten as pure functions
  * (no zustand, no immer): the scene is recomputed from the model on demand.
  */
-import {
-  CONNECTOR_DEFAULTS,
-  TEXTBOX_DEFAULTS,
-  DEFAULT_COLOR
-} from './config.js';
+import { CONNECTOR_DEFAULTS, TEXTBOX_DEFAULTS, DEFAULT_COLOR } from './config.js';
 import { getItemByIdOrThrow, getItemById } from './utils/common.js';
 import { getConnectorPath, getTextBoxDimensions } from './utils/renderer.js';
 
@@ -26,9 +22,7 @@ import { getConnectorPath, getTextBoxDimensions } from './utils/renderer.js';
  * }}
  */
 export const deriveScene = (model, viewId) => {
-  const view = viewId
-    ? getItemByIdOrThrow(model.views, viewId).value
-    : model.views[0];
+  const view = viewId ? getItemByIdOrThrow(model.views, viewId).value : model.views[0];
 
   if (!view) {
     throw new Error('Model has no views.');

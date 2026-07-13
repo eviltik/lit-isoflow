@@ -46,7 +46,6 @@ import {
   outermostCornerPositions
 } from './utils/renderer.js';
 import { getColorVariant, toPx, generateId } from './utils/common.js';
-import { CoordsUtils } from './utils/coords.js';
 import { interactionModes } from './editor/modes.js';
 import * as mutations from './editor/mutations.js';
 import { gridTileDataUri } from './assets/grid-tile.js';
@@ -285,7 +284,13 @@ export class LitIsoflow extends LitElement {
     this._onWindowTouchStart = this._makeTouchHandler('mousedown');
     this._onWindowTouchMove = this._makeTouchHandler('mousemove');
     this._onWindowTouchEnd = (event) => {
-      this._handleMouseEvent({ clientX: 0, clientY: 0, type: 'mouseup', target: event.target, composedPath: () => event.composedPath() });
+      this._handleMouseEvent({
+        clientX: 0,
+        clientY: 0,
+        type: 'mouseup',
+        target: event.target,
+        composedPath: () => event.composedPath()
+      });
     };
     this._onWindowKeyDown = this._handleKeyDown.bind(this);
     this._onWindowKeyUp = this._handleKeyUp.bind(this);
@@ -989,9 +994,7 @@ export class LitIsoflow extends LitElement {
     const modeTypeAtStart = this._mode.type;
 
     if (this._prevModeType !== modeTypeAtStart) {
-      const prevMode = this._prevModeType
-        ? interactionModes[this._prevModeType]
-        : null;
+      const prevMode = this._prevModeType ? interactionModes[this._prevModeType] : null;
 
       prevMode?.exit?.(state);
       mode.entry?.(state);
@@ -1059,10 +1062,7 @@ export class LitIsoflow extends LitElement {
       return;
     }
 
-    if (
-      (event.key === 'Delete' || event.key === 'Backspace') &&
-      this._itemControls
-    ) {
+    if ((event.key === 'Delete' || event.key === 'Backspace') && this._itemControls) {
       event.preventDefault();
       this.deleteSelection();
     }
@@ -1196,11 +1196,13 @@ export class LitIsoflow extends LitElement {
           })}
         </div>
         ${this.showGrid ? this._renderGrid() : nothing}
-        ${this._mode.showCursor
-          ? html`<div class="scene-layer" style=${styleMap(layerStyles)}>
-              ${this._renderTileCursor()}
-            </div>`
-          : nothing}
+        ${
+          this._mode.showCursor
+            ? html`<div class="scene-layer" style=${styleMap(layerStyles)}>
+                ${this._renderTileCursor()}
+              </div>`
+            : nothing
+        }
         <div class="scene-layer" style=${styleMap(layerStyles)}>
           ${this._scene.connectors.map((connector) => {
             return this._renderConnector(connector);
@@ -1349,8 +1351,9 @@ export class LitIsoflow extends LitElement {
             stroke-dasharray=${dashArray}
             fill="none"
           ></polyline>
-          ${directionIcon
-            ? svg`
+          ${
+            directionIcon
+              ? svg`
               <g transform="translate(${directionIcon.x}, ${directionIcon.y})">
                 <g transform="rotate(${directionIcon.rotation})">
                   <polygon
@@ -1362,7 +1365,8 @@ export class LitIsoflow extends LitElement {
                 </g>
               </g>
             `
-            : nothing}
+              : nothing
+          }
         </svg>
       </div>
     `;
@@ -1439,8 +1443,9 @@ export class LitIsoflow extends LitElement {
           class="node-anchor"
           style=${styleMap({ left: toPx(position.x), top: toPx(position.y) })}
         >
-          ${hasLabel && labelHeight > 0
-            ? svg`
+          ${
+            hasLabel && labelHeight > 0
+              ? svg`
               <svg
                 class="label-line"
                 width="3"
@@ -1456,25 +1461,32 @@ export class LitIsoflow extends LitElement {
                 ></line>
               </svg>
             `
-            : nothing}
-          ${hasLabel
-            ? html`
-                <div
-                  class="label-box"
-                  style=${styleMap({
-                    bottom: toPx(labelAnchorY + labelHeight),
-                    transform: 'translateX(-50%)'
-                  })}
-                >
-                  ${modelItem.name
-                    ? html`<div class="name">${modelItem.name}</div>`
-                    : nothing}
-                  ${description
-                    ? html`<div class="description">${unsafeHTML(description)}</div>`
-                    : nothing}
-                </div>
-              `
-            : nothing}
+              : nothing
+          }
+          ${
+            hasLabel
+              ? html`
+                  <div
+                    class="label-box"
+                    style=${styleMap({
+                      bottom: toPx(labelAnchorY + labelHeight),
+                      transform: 'translateX(-50%)'
+                    })}
+                  >
+                    ${
+                      modelItem.name
+                        ? html`<div class="name">${modelItem.name}</div>`
+                        : nothing
+                    }
+                    ${
+                      description
+                        ? html`<div class="description">${unsafeHTML(description)}</div>`
+                        : nothing
+                    }
+                  </div>
+                `
+              : nothing
+          }
           ${icon ? this._renderIcon(icon) : nothing}
         </div>
       </div>

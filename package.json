@@ -13,7 +13,12 @@
   ],
   "scripts": {
     "demo": "vite demo --open",
-    "test": "node --test test/"
+    "build:demo": "vite build demo --base=./ --outDir=../dist-demo --emptyOutDir",
+    "test": "node --test 'test/**/*.test.js'",
+    "lint": "eslint src demo test",
+    "format": "prettier --write 'src/**/*.js' 'test/**/*.js' 'demo/*.js' 'demo/*.html' '*.md' eslint.config.js",
+    "format:check": "prettier --check 'src/**/*.js' 'test/**/*.js' 'demo/*.js'",
+    "check": "pnpm run lint && pnpm run format:check && pnpm run test"
   },
   "keywords": [
     "isometric",
@@ -37,7 +42,12 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@isoflow/isopacks": "^0.0.10",
+    "eslint": "^10.7.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-lit": "^2.3.1",
+    "prettier": "^3.9.5",
     "vite": "^6.3.5"
   }
 }

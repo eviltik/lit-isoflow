@@ -12,7 +12,8 @@
         --text-muted: #67748a;
         --card-bg: #ffffff;
         --card-border: rgba(16, 34, 64, 0.08);
-        --card-shadow: 0 2px 6px rgba(16, 34, 64, 0.06), 0 12px 32px rgba(16, 34, 64, 0.1);
+        --card-shadow:
+          0 2px 6px rgba(16, 34, 64, 0.06), 0 12px 32px rgba(16, 34, 64, 0.1);
         --hover: #f0f4f9;
         --radius: 12px;
       }
@@ -25,7 +26,12 @@
         margin: 0;
         height: 100vh;
         overflow: hidden;
-        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
         color: var(--text);
         font-size: 13px;
       }
@@ -500,7 +506,8 @@
     </div>
 
     <div class="hints">
-      <b>Shift/Espace</b> pan&nbsp;&nbsp;·&nbsp;&nbsp;<b>Suppr</b> supprimer&nbsp;&nbsp;·&nbsp;&nbsp;<b>Ctrl+Z / Ctrl+Y</b> annuler / rétablir
+      <b>Shift/Espace</b> pan&nbsp;&nbsp;·&nbsp;&nbsp;<b>Suppr</b>
+      supprimer&nbsp;&nbsp;·&nbsp;&nbsp;<b>Ctrl+Z / Ctrl+Y</b> annuler / rétablir
     </div>
 
     <div class="card panel" id="panel" hidden>
@@ -525,21 +532,41 @@
 
       const ICONS = {
         cursor: svg('<path d="M4 3l7.2 17 2.4-7.4L21 10.2 4 3z"/>'),
-        pan: svg('<path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/>'),
-        place: svg('<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M12 8.5v7M8.5 12h7"/>'),
-        connector: svg('<circle cx="5" cy="19" r="2.2"/><path d="M6.8 17.2L17 7"/><path d="M11.5 6H18v6.5"/>'),
-        zone: svg('<rect x="4" y="4" width="16" height="16" rx="2.5" stroke-dasharray="4 3"/>'),
+        pan: svg(
+          '<path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/>'
+        ),
+        place: svg(
+          '<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M12 8.5v7M8.5 12h7"/>'
+        ),
+        connector: svg(
+          '<circle cx="5" cy="19" r="2.2"/><path d="M6.8 17.2L17 7"/><path d="M11.5 6H18v6.5"/>'
+        ),
+        zone: svg(
+          '<rect x="4" y="4" width="16" height="16" rx="2.5" stroke-dasharray="4 3"/>'
+        ),
         text: svg('<path d="M5 7V4.5h14V7M9.5 19.5h5M12 4.5v15"/>'),
-        trash: svg('<path d="M4 6.5h16M9 6.5V4.5h6v2M18.5 6.5L17.5 20h-11l-1-13.5M10 10.5v6M14 10.5v6"/>'),
+        trash: svg(
+          '<path d="M4 6.5h16M9 6.5V4.5h6v2M18.5 6.5L17.5 20h-11l-1-13.5M10 10.5v6M14 10.5v6"/>'
+        ),
         undo: svg('<path d="M4 7v6h6"/><path d="M20 17a8 8 0 00-13.5-5.8L4 13"/>'),
         redo: svg('<path d="M20 7v6h-6"/><path d="M4 17a8 8 0 0113.5-5.8L20 13"/>'),
         minus: svg('<path d="M6 12h12"/>'),
         plus: svg('<path d="M6 12h12M12 6v12"/>'),
-        fit: svg('<path d="M8 4H6a2 2 0 00-2 2v2M16 4h2a2 2 0 012 2v2M16 20h2a2 2 0 002-2v-2M8 20H6a2 2 0 01-2-2v-2"/>'),
-        download: svg('<path d="M20 15v3.5a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18.5V15M7.5 10.5L12 15l4.5-4.5M12 15V4"/>'),
-        eye: svg('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>'),
-        image: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M4.5 17.5l4.5-4.5 3 3 3.5-3.5 4.5 4.5"/>'),
-        pencil: svg('<path d="M16.8 3.7a2.3 2.3 0 013.4 3.4L7.5 19.8 3 21l1.2-4.5L16.8 3.7z"/>')
+        fit: svg(
+          '<path d="M8 4H6a2 2 0 00-2 2v2M16 4h2a2 2 0 012 2v2M16 20h2a2 2 0 002-2v-2M8 20H6a2 2 0 01-2-2v-2"/>'
+        ),
+        download: svg(
+          '<path d="M20 15v3.5a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18.5V15M7.5 10.5L12 15l4.5-4.5M12 15V4"/>'
+        ),
+        eye: svg(
+          '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>'
+        ),
+        image: svg(
+          '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M4.5 17.5l4.5-4.5 3 3 3.5-3.5 4.5 4.5"/>'
+        ),
+        pencil: svg(
+          '<path d="M16.8 3.7a2.3 2.3 0 013.4 3.4L7.5 19.8 3 21l1.2-4.5L16.8 3.7z"/>'
+        )
       };
 
       /* ---------- toolbar ---------- */
@@ -591,8 +618,12 @@
         return button;
       };
 
-      const undoButton = actionButton('undo', 'undo', 'Annuler (Ctrl+Z)', () => diagram.undo());
-      const redoButton = actionButton('redo', 'redo', 'Rétablir (Ctrl+Y)', () => diagram.redo());
+      const undoButton = actionButton('undo', 'undo', 'Annuler (Ctrl+Z)', () =>
+        diagram.undo()
+      );
+      const redoButton = actionButton('redo', 'redo', 'Rétablir (Ctrl+Y)', () =>
+        diagram.redo()
+      );
       const deleteButton = actionButton('delete', 'trash', 'Supprimer (Suppr)', () =>
         diagram.deleteSelection()
       );
@@ -636,7 +667,9 @@
         const matches = demoModel.icons.filter((icon) => {
           return (
             icon.collection === galleryCollection.value &&
-            (!term || icon.name.toLowerCase().includes(term) || icon.id.toLowerCase().includes(term))
+            (!term ||
+              icon.name.toLowerCase().includes(term) ||
+              icon.id.toLowerCase().includes(term))
           );
         });
 
@@ -685,7 +718,12 @@
       const modeSwitch = document.querySelector('#mode-switch');
       [
         { mode: 'editor', label: 'Éditeur', icon: 'pencil', editorMode: 'EDITABLE' },
-        { mode: 'viewer', label: 'Visionneuse', icon: 'eye', editorMode: 'EXPLORABLE_READONLY' }
+        {
+          mode: 'viewer',
+          label: 'Visionneuse',
+          icon: 'eye',
+          editorMode: 'EXPLORABLE_READONLY'
+        }
       ].forEach(({ mode, label, icon, editorMode }) => {
         const button = document.createElement('button');
         button.innerHTML = `${ICONS[icon]}<span>${label}</span>`;
@@ -713,8 +751,12 @@
       diagram.addEventListener('zoom-changed', (event) => {
         zoomLabel.textContent = `${Math.round(event.detail.zoom * 100)}%`;
       });
-      document.querySelector('#zoom-in').addEventListener('click', () => diagram.zoomIn());
-      document.querySelector('#zoom-out').addEventListener('click', () => diagram.zoomOut());
+      document
+        .querySelector('#zoom-in')
+        .addEventListener('click', () => diagram.zoomIn());
+      document
+        .querySelector('#zoom-out')
+        .addEventListener('click', () => diagram.zoomOut());
       document.querySelector('#fit').addEventListener('click', () => diagram.fit());
       const downloadBlob = (blob, filename) => {
         const link = document.createElement('a');
@@ -822,9 +864,12 @@
         panelId.textContent = selected.id;
 
         if (selected.type === 'ITEM') {
-          field('Nom', textInput(selected.modelItem.name, (value) => {
-            diagram.updateItem(selected.id, { name: value });
-          }));
+          field(
+            'Nom',
+            textInput(selected.modelItem.name, (value) => {
+              diagram.updateItem(selected.id, { name: value });
+            })
+          );
 
           const textarea = document.createElement('textarea');
           textarea.value = selected.modelItem.description ?? '';
@@ -844,30 +889,56 @@
           iconButton.addEventListener('click', () => openGallery('assign'));
           field('Icône', iconButton);
         } else if (selected.type === 'CONNECTOR') {
-          field('Libellé', textInput(selected.connector.description, (value) => {
-            diagram.updateConnector(selected.id, { description: value });
-          }));
-          field('Couleur', colorSwatches(selected.connector.color, (value) => {
-            diagram.updateConnector(selected.id, { color: value });
-          }));
-          field('Style', selectInput(
-            [['SOLID', 'Plein'], ['DASHED', 'Tirets'], ['DOTTED', 'Pointillés']],
-            selected.connector.style ?? 'SOLID',
-            (value) => diagram.updateConnector(selected.id, { style: value })
-          ));
+          field(
+            'Libellé',
+            textInput(selected.connector.description, (value) => {
+              diagram.updateConnector(selected.id, { description: value });
+            })
+          );
+          field(
+            'Couleur',
+            colorSwatches(selected.connector.color, (value) => {
+              diagram.updateConnector(selected.id, { color: value });
+            })
+          );
+          field(
+            'Style',
+            selectInput(
+              [
+                ['SOLID', 'Plein'],
+                ['DASHED', 'Tirets'],
+                ['DOTTED', 'Pointillés']
+              ],
+              selected.connector.style ?? 'SOLID',
+              (value) => diagram.updateConnector(selected.id, { style: value })
+            )
+          );
         } else if (selected.type === 'RECTANGLE') {
-          field('Couleur', colorSwatches(selected.rectangle.color, (value) => {
-            diagram.updateRectangle(selected.id, { color: value });
-          }));
+          field(
+            'Couleur',
+            colorSwatches(selected.rectangle.color, (value) => {
+              diagram.updateRectangle(selected.id, { color: value });
+            })
+          );
         } else if (selected.type === 'TEXTBOX') {
-          field('Texte', textInput(selected.textBox.content, (value) => {
-            diagram.updateTextBox(selected.id, { content: value });
-          }));
-          field('Taille', selectInput(
-            [['0.4', 'Petit'], ['0.6', 'Normal'], ['1', 'Grand']],
-            String(selected.textBox.fontSize ?? 0.6),
-            (value) => diagram.updateTextBox(selected.id, { fontSize: Number(value) })
-          ));
+          field(
+            'Texte',
+            textInput(selected.textBox.content, (value) => {
+              diagram.updateTextBox(selected.id, { content: value });
+            })
+          );
+          field(
+            'Taille',
+            selectInput(
+              [
+                ['0.4', 'Petit'],
+                ['0.6', 'Normal'],
+                ['1', 'Grand']
+              ],
+              String(selected.textBox.fontSize ?? 0.6),
+              (value) => diagram.updateTextBox(selected.id, { fontSize: Number(value) })
+            )
+          );
         }
       };
 

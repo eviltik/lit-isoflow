@@ -1,0 +1,45 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Load this model…
+        2. Select the connector…
+        3. Drag its anchor onto a node…
+    validations:
+      required: true
+
+  - type: textarea
+    id: model
+    attributes:
+      label: Diagram JSON
+      description: A minimal model that reproduces the issue (drag & drop a file, or paste).
+      render: json
+
+  - type: input
+    id: version
+    attributes:
+      label: lit-isoflow version
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Browser / environment
+      placeholder: Firefox 130, Chrome 141, Electron 33…
+    validations:
+      required: true
