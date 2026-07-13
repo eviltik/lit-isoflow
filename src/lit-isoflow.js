@@ -16,14 +16,12 @@ import { styleMap } from 'lit/directives/style-map.js';
 import {
   PROJECTED_TILE_SIZE,
   UNPROJECTED_TILE_SIZE,
-  DIAGRAM_BACKGROUND_COLOR,
   DEFAULT_FONT_FAMILY,
   DEFAULT_LABEL_HEIGHT,
   TEXTBOX_PADDING,
   TEXTBOX_FONT_WEIGHT,
   TEXTBOX_DEFAULTS,
   TRANSFORM_ANCHOR_SIZE,
-  TRANSFORM_CONTROLS_COLOR,
   MARKDOWN_EMPTY_VALUE,
   DEFAULT_STRINGS,
   MIN_ZOOM,
@@ -51,6 +49,7 @@ import { renderToSvg, getContentBox } from './render-svg.js';
 import { interactionModes } from './editor/modes.js';
 import * as mutations from './editor/mutations.js';
 import { gridTileDataUri } from './assets/grid-tile.js';
+import { resolveTheme } from './theme.js';
 
 const getStartingMode = (editorMode) => {
   switch (editorMode) {
@@ -96,6 +95,12 @@ export class LitIsoflow extends LitElement {
      * The host app owns every other label, so this is the whole i18n surface.
      */
     strings: { type: Object },
+    /**
+     * 'auto' (suit prefers-color-scheme), 'light' ou 'dark'. Seul le décor
+     * change — fond, grille, étiquettes : les couleurs des éléments viennent du
+     * modèle et appartiennent au diagramme.
+     */
+    theme: { type: String, reflect: true },
 
     _zoom: { state: true },
     _scroll: { state: true },
@@ -198,8 +203,9 @@ export class LitIsoflow extends LitElement {
     .label-box {
       position: absolute;
       transform: translate(-50%, -100%);
-      background: #ffffff;
-      border: 1px solid #bdbdbd;
+      background: var(--iso-label-bg);
+      border: 1px solid var(--iso-label-border);
+      color: var(--iso-label-text);
       border-radius: 8px;
       padding: 8px 12px;
       max-width: 250px;
@@ -216,7 +222,7 @@ export class LitIsoflow extends LitElement {
 
     .label-box .description {
       margin-top: 8px;
-      color: #555555;
+      color: var(--iso-label-muted);
     }
 
     .label-box .description p {
@@ -233,7 +239,7 @@ export class LitIsoflow extends LitElement {
       max-width: 150px;
       padding: 6px 8px;
       font-size: 0.75em;
-      color: #666666;
+      color: var(--iso-label-muted);
     }
 
     .textbox {
@@ -253,7 +259,7 @@ export class LitIsoflow extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #b3261e;
+      color: var(--iso-error);
       font-size: 14px;
       padding: 16px;
       text-align: center;
@@ -269,6 +275,16 @@ export class LitIsoflow extends LitElement {
     this.backgroundColor = '';
     this.fitToView = false;
     this.strings = {};
+    this.theme = 'auto';
+
+    // En thème `auto`, un changement de préférence système doit repeindre.
+    this._colorScheme =
+      typeof globalThis.matchMedia === 'function'
+        ? globalThis.matchMedia('(prefers-color-scheme: dark)')
+        : null;
+    this._onColorSchemeChange = () => {
+      if (this.theme === 'auto') this.requestUpdate();
+    };
 
     this._zoom = 1;
     this._scroll = { x: 0, y: 0 };
@@ -335,6 +351,7 @@ export class LitIsoflow extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._resizeObserver.observe(this);
+    this._colorScheme?.addEventListener('change', this._onColorSchemeChange);
     window.addEventListener('mousemove', this._onWindowMouseEvent);
     window.addEventListener('mousedown', this._onWindowMouseEvent);
     window.addEventListener('mouseup', this._onWindowMouseEvent);
@@ -349,6 +366,7 @@ export class LitIsoflow extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this._resizeObserver.disconnect();
+    this._colorScheme?.removeEventListener('change', this._onColorSchemeChange);
     window.removeEventListener('mousemove', this._onWindowMouseEvent);
     window.removeEventListener('mousedown', this._onWindowMouseEvent);
     window.removeEventListener('mouseup', this._onWindowMouseEvent);
@@ -389,6 +407,11 @@ export class LitIsoflow extends LitElement {
   /** The component's strings, with the host's overrides applied. */
   get _strings() {
     return { ...DEFAULT_STRINGS, ...this.strings };
+  }
+
+  /** La palette du décor, résolue depuis la propriété `theme`. */
+  get _theme() {
+    return resolveTheme(this.theme);
   }
 
   // --- public API ---
@@ -658,6 +681,8 @@ export class LitIsoflow extends LitElement {
     return renderToSvg(this._workingModel, {
       viewId: this.viewId || undefined,
       background: this.backgroundColor || 'transparent',
+      // Le SVG exporté reprend le thème affiché, sauf mention contraire.
+      theme: this.theme,
       ...options
     });
   }
@@ -676,7 +701,13 @@ export class LitIsoflow extends LitElement {
    *   margin: padding around the content, in tiles (default 0.15).
    * @returns {Promise<{ blob: Blob, dataUrl: string, width: number, height: number }>}
    */
-  async exportPng({ scale = 2, showGrid = false, background, margin = 0.15 } = {}) {
+  async exportPng({
+    scale = 2,
+    showGrid = false,
+    background,
+    margin = 0.15,
+    theme
+  } = {}) {
     if (!this._scene) throw new Error('No model loaded.');
 
     // Taille du contenu réellement dessiné ; le clone est ensuite resserré au
@@ -693,6 +724,7 @@ export class LitIsoflow extends LitElement {
     clone.editorMode = 'NON_INTERACTIVE';
     clone.showGrid = showGrid;
     clone.backgroundColor = background ?? this.backgroundColor;
+    clone.theme = theme ?? this.theme;
     clone.viewId = this.viewId;
     clone.style.cssText = `position:fixed;left:-100000px;top:0;width:${width}px;height:${height}px;`;
     clone.model = this.getModel();
@@ -1245,7 +1277,12 @@ export class LitIsoflow extends LitElement {
 
   render() {
     if (this._modelError) {
-      return html`<div class="error">${this._modelError}</div>`;
+      return html`<div
+        class="error"
+        style=${styleMap({ '--iso-error': this._theme.errorText })}
+      >
+        ${this._modelError}
+      </div>`;
     }
 
     if (!this._scene) return nothing;
@@ -1253,12 +1290,20 @@ export class LitIsoflow extends LitElement {
     const layerTransform = `translate(${this._scroll.x}px, ${this._scroll.y}px) scale(${this._zoom})`;
     const layerStyles = { transform: layerTransform };
 
+    const theme = this._theme;
+
     return html`
       <div
         class="container ${this._animated ? 'animated' : ''}"
         style=${styleMap({
-          backgroundColor: this.backgroundColor || DIAGRAM_BACKGROUND_COLOR,
-          cursor: this._cursorCss
+          backgroundColor: this.backgroundColor || theme.background,
+          cursor: this._cursorCss,
+          // Le CSS du shadow DOM lit le thème par ces variables.
+          '--iso-label-bg': theme.labelBackground,
+          '--iso-label-border': theme.labelBorder,
+          '--iso-label-text': theme.labelText,
+          '--iso-label-muted': theme.labelMutedText,
+          '--iso-error': theme.errorText
         })}
         @wheel=${this._onWheel}
       >
@@ -1303,6 +1348,7 @@ export class LitIsoflow extends LitElement {
   }
 
   _renderGrid() {
+    const theme = this._theme;
     const tileWidth = PROJECTED_TILE_SIZE.width * this._zoom;
     const tileHeight = PROJECTED_TILE_SIZE.height * this._zoom;
     const width = this.clientWidth;
@@ -1312,7 +1358,7 @@ export class LitIsoflow extends LitElement {
       <div
         class="grid"
         style=${styleMap({
-          '--grid-tile': `url("${gridTileDataUri}")`,
+          '--grid-tile': `url("${gridTileDataUri(theme.gridStroke, theme.gridOpacity)}")`,
           backgroundSize: `${tileWidth}px ${tileHeight * 2}px`,
           backgroundPosition: `${width / 2 + this._scroll.x + tileWidth / 2}px ${
             height / 2 + this._scroll.y
@@ -1323,6 +1369,7 @@ export class LitIsoflow extends LitElement {
   }
 
   _renderTileCursor() {
+    const theme = this._theme;
     const tile = this._mouse.position.tile;
     const { styles, pxSize } = this._projectionStyles(tile, tile);
 
@@ -1337,7 +1384,7 @@ export class LitIsoflow extends LitElement {
           <rect
             width=${pxSize.width}
             height=${pxSize.height}
-            fill=${TRANSFORM_CONTROLS_COLOR}
+            fill=${theme.controlsAccent}
             fill-opacity="0.5"
             rx=${10 * this._zoom}
           ></rect>
@@ -1372,6 +1419,7 @@ export class LitIsoflow extends LitElement {
   }
 
   _renderConnector(connector) {
+    const theme = this._theme;
     const color = resolveColor(this._scene.colors, connector.color);
     const { styles, pxSize } = this._projectionStyles(
       connector.path.rectangle.from,
@@ -1406,7 +1454,7 @@ export class LitIsoflow extends LitElement {
         >
           <polyline
             points=${points}
-            stroke="#ffffff"
+            stroke=${theme.connectorHalo}
             stroke-width=${widthPx * 1.4}
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -1430,7 +1478,7 @@ export class LitIsoflow extends LitElement {
                 <g transform="rotate(${directionIcon.rotation})">
                   <polygon
                     fill="black"
-                    stroke="#ffffff"
+                    stroke=${theme.connectorHalo}
                     stroke-width="4"
                     points="17.58,17.01 0,-17.01 -17.58,17.01"
                   ></polygon>
@@ -1485,7 +1533,8 @@ export class LitIsoflow extends LitElement {
             paddingRight: toPx(UNPROJECTED_TILE_SIZE * TEXTBOX_PADDING),
             fontSize: toPx(UNPROJECTED_TILE_SIZE * textBox.fontSize),
             fontWeight: TEXTBOX_FONT_WEIGHT,
-            fontFamily: DEFAULT_FONT_FAMILY
+            fontFamily: DEFAULT_FONT_FAMILY,
+            color: this._theme.textBoxText
           })}
         >
           ${textBox.content}
@@ -1495,6 +1544,7 @@ export class LitIsoflow extends LitElement {
   }
 
   _renderNode(item) {
+    const theme = this._theme;
     const modelItem = resolveModelItem(this._workingModel, item.id);
     if (!modelItem) return nothing;
 
@@ -1527,7 +1577,7 @@ export class LitIsoflow extends LitElement {
                 <line
                   x1="1.5" y1="0" x2="1.5" y2=${labelHeight}
                   stroke-dasharray="0, 6"
-                  stroke="black"
+                  stroke=${theme.leaderLine}
                   stroke-width="3"
                   stroke-linecap="round"
                 ></line>
@@ -1598,6 +1648,7 @@ export class LitIsoflow extends LitElement {
   // --- transform controls (selection visuals) ---
 
   _renderTransformControls() {
+    const theme = this._theme;
     if (!this._itemControls || this.editorMode !== 'EDITABLE') return nothing;
 
     const { type, id } = this._itemControls;
@@ -1640,8 +1691,8 @@ export class LitIsoflow extends LitElement {
                   cx=${TRANSFORM_ANCHOR_SIZE / 2}
                   cy=${TRANSFORM_ANCHOR_SIZE / 2}
                   r=${TRANSFORM_ANCHOR_SIZE / 2 - 4}
-                  fill="#ffffff"
-                  stroke="#000000"
+                  fill=${theme.anchorFill}
+                  stroke=${theme.anchorStroke}
                   stroke-width="4"
                 ></circle>
               </svg>
@@ -1696,6 +1747,7 @@ export class LitIsoflow extends LitElement {
   }
 
   _renderTransformBox(from, to, onAnchorMouseDown = null) {
+    const theme = this._theme;
     const strokeWidth = 2;
     const { styles, pxSize } = this._projectionStyles(from, to);
 
@@ -1726,7 +1778,7 @@ export class LitIsoflow extends LitElement {
               width=${pxSize.width - strokeWidth * 2}
               height=${pxSize.height - strokeWidth * 2}
               fill="none"
-              stroke=${TRANSFORM_CONTROLS_COLOR}
+              stroke=${theme.controlsAccent}
               stroke-dasharray="${strokeWidth * 2} ${strokeWidth * 2}"
               stroke-width=${strokeWidth}
               stroke-linecap="round"
@@ -1761,8 +1813,8 @@ export class LitIsoflow extends LitElement {
                 cx=${TRANSFORM_ANCHOR_SIZE / 2}
                 cy=${TRANSFORM_ANCHOR_SIZE / 2}
                 r=${TRANSFORM_ANCHOR_SIZE / 2 - 2}
-                fill="#ffffff"
-                stroke=${TRANSFORM_CONTROLS_COLOR}
+                fill=${theme.anchorFill}
+                stroke=${theme.controlsAccent}
                 stroke-width="2"
               ></circle>
             </svg>

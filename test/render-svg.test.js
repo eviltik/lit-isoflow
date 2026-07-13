@@ -192,3 +192,24 @@ test('renderToSvg: an empty view still renders', () => {
   assert.match(svg, /<svg/);
   assert.ok(width > 0 && height > 0);
 });
+
+test('renderToSvg: the theme repaints the chrome, not the diagram', () => {
+  const light = renderToSvg(makeModel(), { theme: 'light', showGrid: true }).svg;
+  const dark = renderToSvg(makeModel(), { theme: 'dark', showGrid: true }).svg;
+
+  // Chrome: labels, grid, connector halo.
+  assert.match(light, /fill="#ffffff" stroke="#bdbdbd"/, 'light label box');
+  assert.match(dark, /fill="#2d333b" stroke="#444c56"/, 'dark label box');
+  assert.ok(!dark.includes('stroke="#bdbdbd"'), 'no light chrome left in the dark theme');
+
+  // The model's own colours are the diagram's, and must not move with the theme.
+  assert.match(light, /fill="#a8e3c0"/, 'the rectangle keeps its colour');
+  assert.match(dark, /fill="#a8e3c0"/, 'the rectangle keeps its colour');
+});
+
+test('renderToSvg: light is the default (an export is not a screen)', () => {
+  assert.equal(
+    renderToSvg(makeModel()).svg,
+    renderToSvg(makeModel(), { theme: 'light' }).svg
+  );
+});

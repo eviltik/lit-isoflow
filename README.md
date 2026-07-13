@@ -101,7 +101,8 @@ npm install github:eviltik/lit-isoflow
 | `viewId`          | `view-id`          | first view            | View to display                                                      |
 | `editorMode`      | `editor-mode`      | `EXPLORABLE_READONLY` | `EDITABLE`, `EXPLORABLE_READONLY` (pan/zoom) or `NON_INTERACTIVE`    |
 | `showGrid`        | `show-grid`        | `true`                | Show the isometric grid                                              |
-| `backgroundColor` | `background-color` | `#f6faff`             | Diagram background                                                   |
+| `theme`           | `theme`            | `auto`                | `light`, `dark`, or `auto` (follows the OS) — see Theming            |
+| `backgroundColor` | `background-color` | —                     | Overrides the theme's background                                     |
 | `fitToView`       | `fit-to-view`      | `false`               | Fit the view in the viewport on load                                 |
 | `strings`         | —                  | English               | Overrides for the component's two strings — see Internationalisation |
 
@@ -113,8 +114,6 @@ npm install github:eviltik/lit-isoflow
   `'PLACE_ICON'` (`options.iconId`), `'CONNECTOR'`, `'RECTANGLE'`, `'TEXTBOX'`
 - `tool` (getter) — currently active tool
 - `deleteSelection()` — delete the selected item (also bound to the Delete key)
-- `clearSelection()` — clear the selection (also bound to Escape); a host can use
-  it to close its property panel
 - `clearSelection()` — clear the selection (also bound to Escape); the host can
   use it to close its property panel
 - `undo()` / `redo()` — gesture-level history (also bound to Ctrl+Z / Ctrl+Y /
@@ -250,6 +249,36 @@ Isoflow); check the isopacks repository for per-collection licences. That is
 why `@isoflow/isopacks` is a dev-dependency of the demo, not a dependency of
 this package.
 
+### Theming (light / dark)
+
+```html
+<lit-isoflow theme="dark"></lit-isoflow>
+<!-- light | dark | auto -->
+```
+
+`auto` (the default) follows the OS via `prefers-color-scheme` and repaints when
+it changes. In an app that has its own theme toggle, drive the property instead —
+`auto` would ignore it:
+
+```js
+diagram.theme = app.isDark ? 'dark' : 'light';
+```
+
+**The theme only repaints the chrome** — background, grid, label boxes, leader
+lines, connector halos, controls. Node, connector and zone colours come from
+`model.colors`: they belong to the diagram, not to the interface, and a diagram
+that means something in red still means it at night.
+
+The same applies to the headless renderer, which defaults to `light` — an export
+is a document, not a screen, so it must not depend on the machine that generated it:
+
+```js
+renderToSvg(model, { theme: 'dark' });
+```
+
+Both worlds read the same palettes ([src/theme.js](src/theme.js)), so the canvas
+and the exported SVG cannot drift apart.
+
 ### Rendering without a browser
 
 The SVG renderer is **pure JavaScript with no DOM**, so a diagram can be turned
@@ -260,7 +289,8 @@ PDF pipeline:
 import { renderToSvg } from 'lit-isoflow/render'; // no lit, no DOM
 
 const { svg, width, height } = renderToSvg(model, {
-  background: '#ffffff', // or 'transparent' (default)
+  theme: 'light', // 'light' (default) or 'dark'
+  background: '#ffffff', // overrides the theme's background; 'transparent' by default
   showGrid: false,
   margin: 0.5 // tiles of padding around the content
 });

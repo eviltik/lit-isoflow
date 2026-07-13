@@ -33,7 +33,8 @@ import {
   connectorPathTileToGlobal
 } from './utils/renderer.js';
 import { getColorVariant } from './utils/common.js';
-import { GRID_TILE_VIEWBOX, GRID_TILE_BODY } from './assets/grid-tile.js';
+import { GRID_TILE_VIEWBOX, gridTileBody } from './assets/grid-tile.js';
+import { resolveTheme } from './theme.js';
 
 /** Rough label metrics; the DOM sizes labels to their content, we estimate. */
 const LABEL_FONT_SIZE = 11;
@@ -138,7 +139,7 @@ const renderRectangles = (scene) => {
     .join('');
 };
 
-const renderConnectors = (scene) => {
+const renderConnectors = (scene, theme) => {
   return scene.connectors
     .map((connector) => {
       const color = resolveColor(scene.colors, connector.color);
@@ -165,7 +166,7 @@ const renderConnectors = (scene) => {
       const directionIcon = getConnectorDirectionIcon(connector.path.tiles);
       const arrow = directionIcon
         ? `<g transform="translate(${directionIcon.x}, ${directionIcon.y}) rotate(${directionIcon.rotation})">` +
-          `<polygon points="17.58,17.01 0,-17.01 -17.58,17.01" fill="black" stroke="#ffffff" stroke-width="4"/>` +
+          `<polygon points="17.58,17.01 0,-17.01 -17.58,17.01" fill="${theme.connectorArrow}" stroke="${theme.connectorArrowStroke}" stroke-width="4"/>` +
           `</g>`
         : '';
 
@@ -174,7 +175,7 @@ const renderConnectors = (scene) => {
       // centre, so the SVG equivalent is a mirror about width/2.
       return (
         `<g transform="${transform} translate(${size.width / 2}, 0) scale(-1, 1) translate(${-size.width / 2}, 0)">` +
-        `<polyline points="${points}" fill="none" stroke="#ffffff" ` +
+        `<polyline points="${points}" fill="none" stroke="${theme.connectorHalo}" ` +
         `stroke-width="${widthPx * 1.4}" stroke-linecap="round" stroke-linejoin="round" ` +
         `stroke-opacity="0.7" stroke-dasharray="${dashArray}"/>` +
         `<polyline points="${points}" fill="none" ` +
@@ -188,7 +189,7 @@ const renderConnectors = (scene) => {
     .join('');
 };
 
-const renderTextBoxes = (scene) => {
+const renderTextBoxes = (scene, theme) => {
   return scene.textBoxes
     .map((textBox) => {
       const to = { x: textBox.tile.x + textBox.size.width, y: textBox.tile.y };
@@ -201,7 +202,7 @@ const renderTextBoxes = (scene) => {
         `<text x="${paddingX}" y="${size.height / 2}" ` +
         `dominant-baseline="central" ` +
         `font-family="${escapeXml(DEFAULT_FONT_FAMILY)}" font-size="${fontSize}" ` +
-        `font-weight="${TEXTBOX_FONT_WEIGHT}" fill="#1c2430">` +
+        `font-weight="${TEXTBOX_FONT_WEIGHT}" fill="${theme.textBoxText}">` +
         escapeXml(textBox.content) +
         `</text></g>`
       );
@@ -245,8 +246,8 @@ const nodeLabelLines = (modelItem) => {
 };
 
 /** A white rounded label box with centred text lines, in screen space. */
-const labelBox = (lines, x, y, anchor, extra = {}) => {
-  const { fontSize = LABEL_FONT_SIZE, color = '#1c2430', bold = false } = extra;
+const labelBox = (lines, x, y, anchor, theme, extra = {}) => {
+  const { fontSize = LABEL_FONT_SIZE, color = theme.labelText, bold = false } = extra;
   const { width, height } = labelBoxSize(lines, fontSize);
 
   // anchor: 'bottom' → the box sits above (x, y); 'center' → centred on it.
@@ -269,12 +270,12 @@ const labelBox = (lines, x, y, anchor, extra = {}) => {
 
   return (
     `<rect x="${boxX}" y="${boxY}" width="${width}" height="${height}" rx="8" ` +
-    `fill="#ffffff" stroke="#bdbdbd" stroke-width="1"/>` +
+    `fill="${theme.labelBackground}" stroke="${theme.labelBorder}" stroke-width="1"/>` +
     texts
   );
 };
 
-const renderConnectorLabels = (scene) => {
+const renderConnectorLabels = (scene, theme) => {
   return scene.connectors
     .map((connector) => {
       if (!connector.description) return '';
@@ -287,9 +288,9 @@ const renderConnectorLabels = (scene) => {
       });
       const lines = wrapText(connector.description, 150, LABEL_FONT_SIZE);
 
-      return labelBox(lines, position.x, position.y, 'center', {
+      return labelBox(lines, position.x, position.y, 'center', theme, {
         fontSize: 10,
-        color: '#666666'
+        color: theme.labelMutedText
       });
     })
     .join('');
@@ -319,7 +320,7 @@ const iconSymbol = (icon) => {
   return { viewBox, body, size };
 };
 
-const renderNodes = (scene, model, icons, symbols) => {
+const renderNodes = (scene, model, icons, symbols, theme) => {
   // Painter's algorithm: the component leans on z-index, SVG on document order,
   // so draw back-to-front (highest x+y first).
   const sorted = [...scene.items].sort((a, b) => {
@@ -347,7 +348,7 @@ const renderNodes = (scene, model, icons, symbols) => {
 
         parts +=
           `<line x1="${position.x}" y1="${labelY}" x2="${position.x}" y2="${labelY - labelHeight}" ` +
-          `stroke="black" stroke-width="3" stroke-linecap="round" stroke-dasharray="0, 6"/>`;
+          `stroke="${theme.leaderLine}" stroke-width="3" stroke-linecap="round" stroke-dasharray="0, 6"/>`;
       }
 
       if (icon && icons[icon.id]) {
@@ -379,7 +380,7 @@ const renderNodes = (scene, model, icons, symbols) => {
       if (lines.length > 0) {
         const labelY = position.y - labelAnchorY;
 
-        parts += labelBox(lines, position.x, labelY - labelHeight, 'bottom', {
+        parts += labelBox(lines, position.x, labelY - labelHeight, 'bottom', theme, {
           bold: true
         });
       }
@@ -610,11 +611,20 @@ export const renderToSvg = (model, options = {}) => {
   const {
     viewId,
     showGrid = false,
-    background = 'transparent',
+    background,
     margin = 0.15,
     iconSizes = {},
-    inlineIcons = true
+    inlineIcons = true,
+    theme: themeName = 'light'
   } = options;
+
+  // Le rendu SVG sert surtout à l'export (PDF, documents) : le thème clair y
+  // est le défaut raisonnable, et non la préférence du système de la machine
+  // qui génère le document.
+  const theme = resolveTheme(themeName);
+  // `background` non fourni → transparent, pour ne pas plaquer un fond dans un
+  // document. Un appelant qui veut le fond du thème passe `theme.background`.
+  const backgroundColor = background ?? 'transparent';
 
   const parsed = modelSchema.parse({ ...INITIAL_DATA, ...model });
   const scene = deriveScene(parsed, viewId);
@@ -644,8 +654,8 @@ export const renderToSvg = (model, options = {}) => {
   const { minX, minY, width, height } = contentBounds(scene, parsed, icons, margin);
 
   const backgroundRect =
-    background && background !== 'transparent'
-      ? `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${escapeXml(background)}"/>`
+    backgroundColor && backgroundColor !== 'transparent'
+      ? `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${escapeXml(backgroundColor)}"/>`
       : '';
 
   // The grid tile is inlined as vector geometry rather than referenced as a
@@ -655,7 +665,9 @@ export const renderToSvg = (model, options = {}) => {
       `width="${PROJECTED_TILE_SIZE.width}" height="${PROJECTED_TILE_SIZE.height * 2}" ` +
       `x="${-PROJECTED_TILE_SIZE.width / 2}" y="0">` +
       `<svg viewBox="${GRID_TILE_VIEWBOX}" width="${PROJECTED_TILE_SIZE.width}" ` +
-      `height="${PROJECTED_TILE_SIZE.height * 2}">${GRID_TILE_BODY}</svg>` +
+      `height="${PROJECTED_TILE_SIZE.height * 2}">` +
+      gridTileBody(theme.gridStroke, theme.gridOpacity) +
+      `</svg>` +
       `</pattern>`
     : '';
 
@@ -684,10 +696,10 @@ export const renderToSvg = (model, options = {}) => {
     backgroundRect +
     renderRectangles(scene) +
     gridRect +
-    renderConnectors(scene) +
-    renderTextBoxes(scene) +
-    renderConnectorLabels(scene) +
-    renderNodes(scene, parsed, icons, symbols) +
+    renderConnectors(scene, theme) +
+    renderTextBoxes(scene, theme) +
+    renderConnectorLabels(scene, theme) +
+    renderNodes(scene, parsed, icons, symbols, theme) +
     `</g>` +
     `</svg>`;
 
