@@ -669,6 +669,34 @@ export class LitIsoflow extends LitElement {
     this._sceneFacade().updateRectangle(id, updates);
   }
 
+  /**
+   * Creates a rectangle spanning the tiles `from` → `to`.
+   *
+   * Until now zones could only be drawn with the mouse, which left a host with
+   * no way to place one programmatically (importing, templating, generating).
+   *
+   * @param {{ from: Coords, to: Coords, color?: string, id?: string }} rectangle
+   * @returns {string | undefined} the id of the new rectangle
+   */
+  createRectangle({ from, to, color, id = generateId() }) {
+    if (!this._scene) return undefined;
+
+    this._sceneFacade().createRectangle({
+      id,
+      color: color ?? this._scene.colors[0]?.id,
+      from,
+      to
+    });
+
+    return id;
+  }
+
+  /** Deletes a rectangle. */
+  deleteRectangle(id) {
+    if (!this._scene) return;
+    this._sceneFacade().deleteRectangle(id);
+  }
+
   /** Updates a text box (content, fontSize, orientation, tile). */
   updateTextBox(id, updates) {
     if (!this._scene) return;

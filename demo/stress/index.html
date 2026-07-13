@@ -317,6 +317,12 @@
         <button class="run" id="randomize" disabled>Randomize loop</button>
       </div>
 
+      <div class="field">
+        <label for="random-areas">Zones — between 2 and 10, none overlapping</label>
+        <button class="run" id="random-areas" disabled>Random areas</button>
+        <span class="note" id="areas-log"></span>
+      </div>
+
       <div class="results" id="results" hidden>
         <div class="metric">
           <span class="name">Model built</span>
@@ -463,6 +469,7 @@
 
         $('run').disabled = true;
         $('randomize').disabled = true;
+        $('random-areas').disabled = true;
         busy.classList.add('on');
         await nextFrame();
 
@@ -512,6 +519,8 @@
         $('m-churn-fps').className = 'value';
         $('run').disabled = false;
         $('randomize').disabled = false;
+        $('random-areas').disabled = false;
+        $('areas-log').textContent = '';
       };
 
       /**
@@ -581,6 +590,69 @@
 
         startChurn(lastCount);
       });
+
+      /**
+       * Scatters 2 to 10 zones over the node grid, none of them overlapping.
+       *
+       * "Distinct" is the whole difficulty: candidates are drawn at random and
+       * rejected when they intersect one already placed. Rejection needs a way
+       * out — a grid can be too crowded to fit ten more zones — so it gives up
+       * after a bounded number of tries and keeps what it has, rather than
+       * spinning forever chasing a target it cannot reach.
+       */
+      const overlaps = (a, b) => {
+        return (
+          a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY
+        );
+      };
+
+      const randomAreas = () => {
+        const model = diagram.getModel();
+        const view = model.views[0];
+
+        // Clear the previous round: clicking again re-rolls, it does not pile up.
+        for (const rectangle of [...(view.rectangles ?? [])]) {
+          diagram.deleteRectangle(rectangle.id);
+        }
+
+        // The generator lays nodes out on a square grid, two tiles apart.
+        const side = Math.ceil(Math.sqrt(lastCount));
+        const span = Math.max(1, (side - 1) * 2);
+        const colors = model.colors ?? [];
+
+        const wanted = 2 + Math.floor(Math.random() * 9); // 2..10
+        const placed = [];
+        let attempts = 0;
+
+        while (placed.length < wanted && attempts < 200) {
+          attempts += 1;
+
+          // Sized as a fraction of the grid, so zones stay meaningful whether
+          // there are 100 nodes or 10 000.
+          const w = Math.max(2, Math.round(span * (0.08 + Math.random() * 0.17)));
+          const h = Math.max(2, Math.round(span * (0.08 + Math.random() * 0.17)));
+          const x = Math.round(Math.random() * (span - w));
+          const y = Math.round(Math.random() * (span - h));
+
+          const box = { minX: x, maxX: x + w, minY: y, maxY: y + h };
+          if (placed.some((other) => overlaps(box, other))) continue;
+
+          placed.push(box);
+          diagram.createRectangle({
+            from: { x: box.minX, y: box.minY },
+            to: { x: box.maxX, y: box.maxY },
+            color: colors[placed.length % colors.length]?.id
+          });
+        }
+
+        log(`${placed.length} zones placed (${attempts} attempts)`);
+      };
+
+      const log = (message) => {
+        $('areas-log').textContent = message;
+      };
+
+      $('random-areas').addEventListener('click', randomAreas);
 
       $('presets').addEventListener('click', (e) => {
         const button = e.target.closest('button[data-count]');
