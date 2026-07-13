@@ -113,6 +113,10 @@ npm install github:eviltik/lit-isoflow
   `'PLACE_ICON'` (`options.iconId`), `'CONNECTOR'`, `'RECTANGLE'`, `'TEXTBOX'`
 - `tool` (getter) — currently active tool
 - `deleteSelection()` — delete the selected item (also bound to the Delete key)
+- `clearSelection()` — clear the selection (also bound to Escape); a host can use
+  it to close its property panel
+- `clearSelection()` — clear the selection (also bound to Escape); the host can
+  use it to close its property panel
 - `undo()` / `redo()` — gesture-level history (also bound to Ctrl+Z / Ctrl+Y /
   Ctrl+Shift+Z); `canUndo` / `canRedo` getters
 - `getModel()` — deep snapshot of the current (possibly edited) model
@@ -138,6 +142,7 @@ npm install github:eviltik/lit-isoflow
 | ----------------------------- | ---------------------------------------------------------- |
 | Hold **Shift** or **Space**   | Pan; the active tool and selection are restored on release |
 | **Delete** / **Backspace**    | Delete the selection                                       |
+| **Escape**                    | Clear the selection                                        |
 | **Ctrl+Z**                    | Undo                                                       |
 | **Ctrl+Y** / **Ctrl+Shift+Z** | Redo                                                       |
 

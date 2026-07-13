@@ -805,6 +805,16 @@ export class LitIsoflow extends LitElement {
     }
   }
 
+  /**
+   * Clears the selection (and emits `item-selected` with a null item), so a
+   * host can close its property panel without reaching into internals.
+   */
+  clearSelection() {
+    if (!this._itemControls) return;
+
+    this._setItemControls(null);
+  }
+
   /** Deletes the currently selected item (also bound to the Delete key). */
   deleteSelection() {
     if (!this._itemControls || !this._workingModel) return;
@@ -1115,6 +1125,12 @@ export class LitIsoflow extends LitElement {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
       event.preventDefault();
       this.redo();
+      return;
+    }
+
+    if (event.key === 'Escape' && this._itemControls) {
+      event.preventDefault();
+      this.clearSelection();
       return;
     }
 
