@@ -5,7 +5,7 @@
  * a state facade: { uiState, scene, isRendererInteraction }.
  * - uiState: { mode, mouse, scroll, actions: { setMode, setScroll, setItemControls, setCursor } }
  * - scene: derived scene (items/connectors with paths/rectangles/textBoxes/
- *   colors/currentView) + mutation methods provided by <lit-isoflow>.
+ *   colors/currentView/strings) + mutation methods provided by <lit-isoflow>.
  *
  * The Lasso mode is not ported: it is entirely commented out upstream.
  */
@@ -304,7 +304,7 @@ export const PlaceIcon = {
 
       scene.createModelItem({
         id: modelItemId,
-        name: 'Untitled',
+        name: scene.strings.untitledItem,
         icon: uiState.mode.id
       });
 

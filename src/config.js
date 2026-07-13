@@ -84,6 +84,18 @@ export const DEFAULT_ICON = {
   url: ''
 };
 
+/**
+ * The only user-facing strings the component owns. Everything else visible on
+ * screen comes from the model or from the host app, so a full i18n layer would
+ * be overkill: override these through the `strings` property instead.
+ */
+export const DEFAULT_STRINGS = {
+  /** Name given to a node created with the place-icon tool. */
+  untitledItem: 'Untitled',
+  /** Prefix of the message shown when the model fails validation. */
+  invalidModel: 'Invalid diagram model'
+};
+
 export const DEFAULT_LABEL_HEIGHT = 20;
 export const PROJECT_BOUNDING_BOX_PADDING = 3;
 export const MARKDOWN_EMPTY_VALUE = '<p><br></p>';

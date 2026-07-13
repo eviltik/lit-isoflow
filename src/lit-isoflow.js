@@ -25,6 +25,7 @@ import {
   TRANSFORM_ANCHOR_SIZE,
   TRANSFORM_CONTROLS_COLOR,
   MARKDOWN_EMPTY_VALUE,
+  DEFAULT_STRINGS,
   INITIAL_DATA
 } from './config.js';
 import { modelSchema } from './schemas.js';
@@ -89,6 +90,11 @@ export class LitIsoflow extends LitElement {
     backgroundColor: { type: String, attribute: 'background-color' },
     /** Fit the whole view in the viewport once on load. */
     fitToView: { type: Boolean, attribute: 'fit-to-view' },
+    /**
+     * Overrides for the component's own strings (see DEFAULT_STRINGS).
+     * The host app owns every other label, so this is the whole i18n surface.
+     */
+    strings: { type: Object },
 
     _zoom: { state: true },
     _scroll: { state: true },
@@ -261,6 +267,7 @@ export class LitIsoflow extends LitElement {
     this.showGrid = true;
     this.backgroundColor = '';
     this.fitToView = false;
+    this.strings = {};
 
     this._zoom = 1;
     this._scroll = { x: 0, y: 0 };
@@ -376,6 +383,11 @@ export class LitIsoflow extends LitElement {
         new CustomEvent('diagram-ready', { bubbles: true, composed: true })
       );
     }
+  }
+
+  /** The component's strings, with the host's overrides applied. */
+  get _strings() {
+    return { ...DEFAULT_STRINGS, ...this.strings };
   }
 
   // --- public API ---
@@ -787,11 +799,12 @@ export class LitIsoflow extends LitElement {
     const result = modelSchema.safeParse(candidate);
 
     if (!result.success) {
-      this._modelError = result.error.issues
+      const details = result.error.issues
         .map((issue) => {
           return `${issue.path.join('.')}: ${issue.message}`;
         })
         .join(' — ');
+      this._modelError = `${this._strings.invalidModel} — ${details}`;
       this.dispatchEvent(
         new CustomEvent('model-error', {
           detail: { error: result.error },
@@ -863,6 +876,9 @@ export class LitIsoflow extends LitElement {
       },
       get currentView() {
         return self._scene.view;
+      },
+      get strings() {
+        return self._strings;
       },
       createViewItem: (item) => {
         return mutate(mutations.createViewItem, item);

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -304,6 +304,22 @@
         box-shadow: 0 1px 4px rgba(16, 34, 64, 0.14);
       }
 
+      .lang-switch {
+        font: inherit;
+        font-weight: 600;
+        color: var(--text-muted);
+        background: transparent;
+        border: none;
+        border-radius: 7px;
+        padding: 6px 4px;
+        cursor: pointer;
+        outline: none;
+      }
+
+      .lang-switch:hover {
+        background: var(--hover);
+      }
+
       /* ---------- zoom controls ---------- */
 
       .zoom-card {
@@ -490,41 +506,50 @@
     </div>
 
     <div class="card top-right">
+      <select id="lang-switch" class="lang-switch"></select>
       <div class="segmented" id="mode-switch"></div>
-      <button class="icon-btn" id="export-png" data-tip="Exporter en PNG"></button>
-      <button class="icon-btn" id="export" data-tip="Exporter le JSON"></button>
+      <button class="icon-btn" id="export-png"></button>
+      <button class="icon-btn" id="export"></button>
     </div>
 
     <div class="card toolbar" id="toolbar"></div>
     <div class="card icon-popover" id="icon-popover"></div>
 
     <div class="card zoom-card">
-      <button class="icon-btn" id="zoom-out" data-tip="Zoom arrière"></button>
+      <button class="icon-btn" id="zoom-out"></button>
       <span class="zoom-value" id="zoom-label">100%</span>
-      <button class="icon-btn" id="zoom-in" data-tip="Zoom avant"></button>
-      <button class="icon-btn" id="fit" data-tip="Ajuster à la vue"></button>
+      <button class="icon-btn" id="zoom-in"></button>
+      <button class="icon-btn" id="fit"></button>
     </div>
 
-    <div class="hints">
-      <b>Shift/Espace</b> pan&nbsp;&nbsp;·&nbsp;&nbsp;<b>Suppr</b>
-      supprimer&nbsp;&nbsp;·&nbsp;&nbsp;<b>Ctrl+Z / Ctrl+Y</b> annuler / rétablir
-    </div>
+    <div class="hints" id="hints"></div>
 
     <div class="card panel" id="panel" hidden>
       <span class="panel-type" id="panel-type"></span>
       <div class="panel-id" id="panel-id"></div>
       <div id="panel-fields"></div>
       <div class="delete-row">
-        <button id="panel-delete">Supprimer</button>
+        <button id="panel-delete"></button>
       </div>
     </div>
 
     <script type="module">
       import '../src/index.js';
-      import { demoModel } from './model.js';
+      import { buildDemoModel, demoIcons } from './model.js';
+      import {
+        LANGUAGES,
+        detectLanguage,
+        setLanguage,
+        createTranslator,
+        componentStrings,
+        languageName
+      } from './i18n.js';
 
       const diagram = document.querySelector('lit-isoflow');
-      diagram.model = demoModel;
+
+      let lang = detectLanguage();
+      let t = createTranslator(lang);
+      setLanguage(lang);
 
       /* ---------- inline SVG icons (24x24 stroke paths) ---------- */
       const svg = (paths) =>
@@ -569,25 +594,36 @@
         )
       };
 
-      /* ---------- toolbar ---------- */
+      /* ---------- static structure (icons, listeners) ---------- */
+
       const toolbar = document.querySelector('#toolbar');
       const iconPopover = document.querySelector('#icon-popover');
+      const panel = document.querySelector('#panel');
+      const panelType = document.querySelector('#panel-type');
+      const panelId = document.querySelector('#panel-id');
+      const panelFields = document.querySelector('#panel-fields');
+      const panelDelete = document.querySelector('#panel-delete');
+      const modeSwitch = document.querySelector('#mode-switch');
+      const langSwitch = document.querySelector('#lang-switch');
+      const zoomLabel = document.querySelector('#zoom-label');
+      const hints = document.querySelector('#hints');
+
       let placeIconId = 'server';
 
       const TOOLS = [
-        { tool: 'CURSOR', icon: 'cursor', tip: 'Sélectionner / déplacer (V)' },
-        { tool: 'PAN', icon: 'pan', tip: 'Déplacer la vue (Shift/Espace)' },
-        { tool: 'PLACE_ICON', icon: 'place', tip: 'Placer une icône' },
-        { tool: 'CONNECTOR', icon: 'connector', tip: 'Tracer un connecteur' },
-        { tool: 'RECTANGLE', icon: 'zone', tip: 'Dessiner une zone' },
-        { tool: 'TEXTBOX', icon: 'text', tip: 'Ajouter du texte' }
+        { tool: 'CURSOR', icon: 'cursor', tip: 'tool.cursor' },
+        { tool: 'PAN', icon: 'pan', tip: 'tool.pan' },
+        { tool: 'PLACE_ICON', icon: 'place', tip: 'tool.place' },
+        { tool: 'CONNECTOR', icon: 'connector', tip: 'tool.connector' },
+        { tool: 'RECTANGLE', icon: 'zone', tip: 'tool.rectangle' },
+        { tool: 'TEXTBOX', icon: 'text', tip: 'tool.textbox' }
       ];
 
       TOOLS.forEach(({ tool, icon, tip }) => {
         const button = document.createElement('button');
         button.className = 'icon-btn';
         button.dataset.tool = tool;
-        button.dataset.tip = tip;
+        button.dataset.i18nTip = tip;
         button.innerHTML = ICONS[icon];
         button.addEventListener('click', () => {
           if (tool === 'PLACE_ICON') {
@@ -607,24 +643,24 @@
 
       toolbar.insertAdjacentHTML('beforeend', '<hr />');
 
-      const actionButton = (id, icon, tip, onClick) => {
+      const actionButton = (id, icon, tipKey, onClick) => {
         const button = document.createElement('button');
         button.className = 'icon-btn';
         button.id = id;
-        button.dataset.tip = tip;
+        button.dataset.i18nTip = tipKey;
         button.innerHTML = ICONS[icon];
         button.addEventListener('click', onClick);
         toolbar.appendChild(button);
         return button;
       };
 
-      const undoButton = actionButton('undo', 'undo', 'Annuler (Ctrl+Z)', () =>
+      const undoButton = actionButton('undo', 'undo', 'action.undo', () =>
         diagram.undo()
       );
-      const redoButton = actionButton('redo', 'redo', 'Rétablir (Ctrl+Y)', () =>
+      const redoButton = actionButton('redo', 'redo', 'action.redo', () =>
         diagram.redo()
       );
-      const deleteButton = actionButton('delete', 'trash', 'Supprimer (Suppr)', () =>
+      const deleteButton = actionButton('delete', 'trash', 'action.delete', () =>
         diagram.deleteSelection()
       );
       undoButton.disabled = true;
@@ -643,12 +679,12 @@
          Reused in two modes: 'place' (stamp tool) and 'assign'
          (swap the selected node's icon from the property panel). */
       const GALLERY_MAX = 60;
-      const collections = [...new Set(demoModel.icons.map((icon) => icon.collection))];
+      const collections = [...new Set(demoIcons.map((icon) => icon.collection))];
       let galleryMode = 'place';
 
       iconPopover.innerHTML = `
         <div class="gallery-header">
-          <input type="search" placeholder="Rechercher une icône…" id="gallery-search" />
+          <input type="search" id="gallery-search" />
           <select id="gallery-collection">
             ${collections.map((name) => `<option>${name}</option>`).join('')}
           </select>
@@ -664,7 +700,7 @@
 
       const renderGallery = () => {
         const term = gallerySearch.value.trim().toLowerCase();
-        const matches = demoModel.icons.filter((icon) => {
+        const matches = demoIcons.filter((icon) => {
           return (
             icon.collection === galleryCollection.value &&
             (!term ||
@@ -696,12 +732,15 @@
           galleryGrid.appendChild(button);
         });
 
-        galleryMore.textContent =
-          matches.length > GALLERY_MAX
-            ? `${matches.length - GALLERY_MAX} autres icônes — affinez la recherche`
-            : matches.length === 0
-              ? 'Aucune icône ne correspond'
-              : '';
+        if (matches.length > GALLERY_MAX) {
+          galleryMore.textContent = t('gallery.more', {
+            count: matches.length - GALLERY_MAX
+          });
+        } else if (matches.length === 0) {
+          galleryMore.textContent = t('gallery.empty');
+        } else {
+          galleryMore.textContent = '';
+        }
       };
 
       gallerySearch.addEventListener('input', renderGallery);
@@ -714,19 +753,26 @@
         gallerySearch.focus();
       };
 
-      /* ---------- mode switch: éditeur / visionneuse ---------- */
-      const modeSwitch = document.querySelector('#mode-switch');
-      [
-        { mode: 'editor', label: 'Éditeur', icon: 'pencil', editorMode: 'EDITABLE' },
+      /* ---------- mode switch: editor / viewer ---------- */
+      const MODES = [
+        {
+          mode: 'editor',
+          labelKey: 'mode.editor',
+          icon: 'pencil',
+          editorMode: 'EDITABLE'
+        },
         {
           mode: 'viewer',
-          label: 'Visionneuse',
+          labelKey: 'mode.viewer',
           icon: 'eye',
           editorMode: 'EXPLORABLE_READONLY'
         }
-      ].forEach(({ mode, label, icon, editorMode }) => {
+      ];
+
+      MODES.forEach(({ mode, labelKey, icon, editorMode }) => {
         const button = document.createElement('button');
-        button.innerHTML = `${ICONS[icon]}<span>${label}</span>`;
+        button.dataset.i18nLabel = labelKey;
+        button.innerHTML = `${ICONS[icon]}<span></span>`;
         button.classList.toggle('active', mode === 'editor');
         button.addEventListener('click', () => {
           document.body.dataset.mode = mode;
@@ -740,14 +786,33 @@
         modeSwitch.appendChild(button);
       });
 
+      /* ---------- language switch ---------- */
+      LANGUAGES.forEach((code) => {
+        const option = document.createElement('option');
+        option.value = code;
+        option.textContent = languageName(code);
+        langSwitch.appendChild(option);
+      });
+      langSwitch.value = lang;
+      langSwitch.addEventListener('change', () => {
+        lang = langSwitch.value;
+        t = createTranslator(lang);
+        setLanguage(lang);
+        applyLanguage();
+      });
+
       /* ---------- zoom / fit / export ---------- */
       document.querySelector('#zoom-out').innerHTML = ICONS.minus;
       document.querySelector('#zoom-in').innerHTML = ICONS.plus;
       document.querySelector('#fit').innerHTML = ICONS.fit;
       document.querySelector('#export').innerHTML = ICONS.download;
       document.querySelector('#export-png').innerHTML = ICONS.image;
+      document.querySelector('#zoom-out').dataset.i18nTip = 'zoom.out';
+      document.querySelector('#zoom-in').dataset.i18nTip = 'zoom.in';
+      document.querySelector('#fit').dataset.i18nTip = 'zoom.fit';
+      document.querySelector('#export').dataset.i18nTip = 'export.json';
+      document.querySelector('#export-png').dataset.i18nTip = 'export.png';
 
-      const zoomLabel = document.querySelector('#zoom-label');
       diagram.addEventListener('zoom-changed', (event) => {
         zoomLabel.textContent = `${Math.round(event.detail.zoom * 100)}%`;
       });
@@ -758,6 +823,7 @@
         .querySelector('#zoom-out')
         .addEventListener('click', () => diagram.zoomOut());
       document.querySelector('#fit').addEventListener('click', () => diagram.fit());
+
       const downloadBlob = (blob, filename) => {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -775,8 +841,8 @@
 
       document.querySelector('#export-png').addEventListener('click', async () => {
         const { blob } = await diagram.exportPng({ scale: 2 });
-        // Ouvre l'image dans un onglet ; l'URL blob reste valide tant que
-        // la page de la démo vit.
+        // Opens the image in a tab; the blob URL stays valid as long as this
+        // page lives.
         window.open(URL.createObjectURL(blob), '_blank');
       });
 
@@ -787,20 +853,9 @@
       });
 
       /* ---------- property panel (reference example of grafting an editor) ---------- */
-      const panel = document.querySelector('#panel');
-      const panelType = document.querySelector('#panel-type');
-      const panelId = document.querySelector('#panel-id');
-      const panelFields = document.querySelector('#panel-fields');
-      document.querySelector('#panel-delete').addEventListener('click', () => {
+      panelDelete.addEventListener('click', () => {
         diagram.deleteSelection();
       });
-
-      const TYPE_LABELS = {
-        ITEM: 'Nœud',
-        CONNECTOR: 'Connecteur',
-        RECTANGLE: 'Zone',
-        TEXTBOX: 'Texte'
-      };
 
       const field = (labelText, inputEl) => {
         const label = document.createElement('label');
@@ -860,12 +915,12 @@
         }
 
         panel.hidden = false;
-        panelType.textContent = TYPE_LABELS[selected.type] ?? selected.type;
+        panelType.textContent = t(`panel.type.${selected.type}`);
         panelId.textContent = selected.id;
 
         if (selected.type === 'ITEM') {
           field(
-            'Nom',
+            t('panel.name'),
             textInput(selected.modelItem.name, (value) => {
               diagram.updateItem(selected.id, { name: value });
             })
@@ -876,7 +931,7 @@
           textarea.addEventListener('input', () => {
             diagram.updateItem(selected.id, { description: textarea.value });
           });
-          field('Description (HTML)', textarea);
+          field(t('panel.description'), textarea);
 
           const currentIcon = diagram
             .getModel()
@@ -885,29 +940,29 @@
           iconButton.className = 'icon-field';
           iconButton.innerHTML = currentIcon
             ? `<img src="${currentIcon.url}" alt="" /><span>${currentIcon.name}</span>`
-            : '<span>Choisir…</span>';
+            : `<span>${t('gallery.choose')}</span>`;
           iconButton.addEventListener('click', () => openGallery('assign'));
-          field('Icône', iconButton);
+          field(t('panel.icon'), iconButton);
         } else if (selected.type === 'CONNECTOR') {
           field(
-            'Libellé',
+            t('panel.label'),
             textInput(selected.connector.description, (value) => {
               diagram.updateConnector(selected.id, { description: value });
             })
           );
           field(
-            'Couleur',
+            t('panel.color'),
             colorSwatches(selected.connector.color, (value) => {
               diagram.updateConnector(selected.id, { color: value });
             })
           );
           field(
-            'Style',
+            t('panel.style'),
             selectInput(
               [
-                ['SOLID', 'Plein'],
-                ['DASHED', 'Tirets'],
-                ['DOTTED', 'Pointillés']
+                ['SOLID', t('style.solid')],
+                ['DASHED', t('style.dashed')],
+                ['DOTTED', t('style.dotted')]
               ],
               selected.connector.style ?? 'SOLID',
               (value) => diagram.updateConnector(selected.id, { style: value })
@@ -915,25 +970,25 @@
           );
         } else if (selected.type === 'RECTANGLE') {
           field(
-            'Couleur',
+            t('panel.color'),
             colorSwatches(selected.rectangle.color, (value) => {
               diagram.updateRectangle(selected.id, { color: value });
             })
           );
         } else if (selected.type === 'TEXTBOX') {
           field(
-            'Texte',
+            t('panel.text'),
             textInput(selected.textBox.content, (value) => {
               diagram.updateTextBox(selected.id, { content: value });
             })
           );
           field(
-            'Taille',
+            t('panel.size'),
             selectInput(
               [
-                ['0.4', 'Petit'],
-                ['0.6', 'Normal'],
-                ['1', 'Grand']
+                ['0.4', t('size.small')],
+                ['0.6', t('size.normal')],
+                ['1', t('size.large')]
               ],
               String(selected.textBox.fontSize ?? 0.6),
               (value) => diagram.updateTextBox(selected.id, { fontSize: Number(value) })
@@ -948,7 +1003,36 @@
         syncToolButtons();
       });
 
-      syncToolButtons();
+      /* ---------- apply the current language to every label ---------- */
+      const applyLanguage = () => {
+        document.querySelectorAll('[data-i18n-tip]').forEach((el) => {
+          el.dataset.tip = t(el.dataset.i18nTip);
+        });
+        document.querySelectorAll('[data-i18n-label]').forEach((el) => {
+          el.querySelector('span').textContent = t(el.dataset.i18nLabel);
+        });
+
+        gallerySearch.placeholder = t('gallery.search');
+        panelDelete.textContent = t('panel.delete');
+        hints.innerHTML =
+          `<b>Shift/Space</b> ${t('hints.pan')}&nbsp;&nbsp;·&nbsp;&nbsp;` +
+          `<b>Del</b> ${t('hints.delete')}&nbsp;&nbsp;·&nbsp;&nbsp;` +
+          `<b>Ctrl+Z / Ctrl+Y</b> ${t('hints.undo')}`;
+
+        // The component renders two strings of its own.
+        diagram.strings = componentStrings(t);
+
+        renderGallery();
+        renderPanel(null);
+        syncToolButtons();
+      };
+
+      applyLanguage();
+
+      // The sample diagram is built in the detected language. Switching
+      // languages afterwards only relabels the UI: the diagram is the user's
+      // document by then, and reloading it would discard their edits.
+      diagram.model = buildDemoModel(t);
     </script>
   </body>
 </html>

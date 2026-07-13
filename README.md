@@ -95,14 +95,15 @@ npm install github:eviltik/lit-isoflow
 
 ### Properties / attributes
 
-| Property          | Attribute          | Default               | Description                                                       |
-| ----------------- | ------------------ | --------------------- | ----------------------------------------------------------------- |
-| `model`           | —                  | `null`                | Diagram model (Isoflow/FossFLOW JSON)                             |
-| `viewId`          | `view-id`          | first view            | View to display                                                   |
-| `editorMode`      | `editor-mode`      | `EXPLORABLE_READONLY` | `EDITABLE`, `EXPLORABLE_READONLY` (pan/zoom) or `NON_INTERACTIVE` |
-| `showGrid`        | `show-grid`        | `true`                | Show the isometric grid                                           |
-| `backgroundColor` | `background-color` | `#f6faff`             | Diagram background                                                |
-| `fitToView`       | `fit-to-view`      | `false`               | Fit the view in the viewport on load                              |
+| Property          | Attribute          | Default               | Description                                                          |
+| ----------------- | ------------------ | --------------------- | -------------------------------------------------------------------- |
+| `model`           | —                  | `null`                | Diagram model (Isoflow/FossFLOW JSON)                                |
+| `viewId`          | `view-id`          | first view            | View to display                                                      |
+| `editorMode`      | `editor-mode`      | `EXPLORABLE_READONLY` | `EDITABLE`, `EXPLORABLE_READONLY` (pan/zoom) or `NON_INTERACTIVE`    |
+| `showGrid`        | `show-grid`        | `true`                | Show the isometric grid                                              |
+| `backgroundColor` | `background-color` | `#f6faff`             | Diagram background                                                   |
+| `fitToView`       | `fit-to-view`      | `false`               | Fit the view in the viewport on load                                 |
+| `strings`         | —                  | English               | Overrides for the component's two strings — see Internationalisation |
 
 ### Methods
 
@@ -239,6 +240,23 @@ Icon artwork belongs to its respective owners (AWS, Microsoft, Google, CNCF,
 Isoflow); check the isopacks repository for per-collection licences. That is
 why `@isoflow/isopacks` is a dev-dependency of the demo, not a dependency of
 this package.
+
+### Internationalisation
+
+The component is a canvas: it owns exactly **two** user-facing strings, so there
+is no i18n layer to configure — just override them:
+
+```js
+diagram.strings = {
+  untitledItem: 'Sans titre', // name given to a newly placed node
+  invalidModel: 'Modèle invalide' // prefix of the model validation error
+};
+```
+
+Everything else on screen comes from your model (node names, labels) or from your
+own UI. The demo ships a ~40-line, dependency-free i18n module
+([demo/i18n.js](demo/i18n.js)) — dictionary per language, `t()` helper, browser
+detection, `localStorage` persistence — as a reference for host apps.
 
 ## Security
 
