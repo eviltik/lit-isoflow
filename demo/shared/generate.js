@@ -12,11 +12,16 @@ import { demoIcons } from './model.js';
 
 // A handful of recognisable icons, cycled through: which icons are used has no
 // bearing on cost (they are all data-URI SVGs, drawn once as a <symbol>).
-const ICONS = ['server', 'storage', 'laptop', 'router', 'firewall', 'cloud'].filter(
-  (id) => {
-    return demoIcons.some((icon) => icon.id === id);
-  }
-);
+export const ICONS = [
+  'server',
+  'storage',
+  'laptop',
+  'router',
+  'firewall',
+  'cloud'
+].filter((id) => {
+  return demoIcons.some((icon) => icon.id === id);
+});
 
 const COLORS = [
   { id: 'blue', value: '#a5b8f3' },

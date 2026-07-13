@@ -311,6 +311,12 @@
 
       <button class="run" id="run">Run</button>
 
+      <div class="field">
+        <label for="churn">Live mutations — icons swapped per frame</label>
+        <input id="churn" type="number" min="1" max="1000" step="10" value="50" />
+        <button class="run" id="randomize" disabled>Randomize loop</button>
+      </div>
+
       <div class="results" id="results" hidden>
         <div class="metric">
           <span class="name">Model built</span>
@@ -332,6 +338,14 @@
           <span class="name">Frame rate (panning)</span>
           <span class="value" id="m-fps">—</span>
         </div>
+        <div class="metric">
+          <span class="name">Frame rate (mutating)</span>
+          <span class="value" id="m-churn-fps">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">Icon swaps / second</span>
+          <span class="value" id="m-churn-rate">—</span>
+        </div>
         <div class="verdict" id="verdict"></div>
       </div>
     </div>
@@ -340,7 +354,7 @@
 
     <script type="module">
       import '../../src/index.js';
-      import { generateModel } from '../shared/generate.js';
+      import { generateModel, ICONS } from '../shared/generate.js';
 
       const diagram = document.querySelector('lit-isoflow');
       const $ = (id) => document.getElementById(id);
@@ -436,12 +450,19 @@
         return 'Not usable at this size. The DOM renderer is the wrong tool here: it would take viewport culling (render only what is on screen) or a canvas renderer.';
       };
 
+      /** Node count of the model on screen — what the randomize loop mutates. */
+      let lastCount = 0;
+
       const run = async () => {
         const count = Math.max(1, Number($('count').value) || 1);
         const connectorRatio = Number($('connectors').value);
         const labels = $('labels').checked;
 
+        // A loop left running would keep mutating a model we are replacing.
+        stopChurn();
+
         $('run').disabled = true;
+        $('randomize').disabled = true;
         busy.classList.add('on');
         await nextFrame();
 
@@ -483,8 +504,83 @@
         $('m-ratio').className = 'value';
 
         $('verdict').textContent = verdictFor(fps, renderMs);
+
+        // Only now is there a model to churn.
+        lastCount = count;
+        $('m-churn-fps').textContent = '—';
+        $('m-churn-rate').textContent = '—';
+        $('m-churn-fps').className = 'value';
         $('run').disabled = false;
+        $('randomize').disabled = false;
       };
+
+      /**
+       * Swaps random icons, frame after frame, until stopped.
+       *
+       * This is the other half of the question: panning measures re-rendering a
+       * scene that has not changed, whereas this measures the cost of the model
+       * *changing* — the case of an app wired to live data.
+       *
+       * Icons are swapped through the public API (updateItem), never by
+       * reassigning `model`: handing over a new model remounts everything, which
+       * would measure a full rebuild and flatter nothing.
+       */
+      let churning = null;
+
+      const stopChurn = () => {
+        if (!churning) return;
+
+        cancelAnimationFrame(churning);
+        churning = null;
+        $('randomize').textContent = 'Randomize loop';
+      };
+
+      const startChurn = (count) => {
+        const perFrame = Math.max(1, Number($('churn').value) || 1);
+        $('randomize').textContent = 'Stop';
+
+        let frames = 0;
+        let swaps = 0;
+        let t0 = performance.now();
+
+        const tick = () => {
+          for (let i = 0; i < perFrame; i += 1) {
+            const id = `n${Math.floor(Math.random() * count)}`;
+            const icon = ICONS[Math.floor(Math.random() * ICONS.length)];
+            diagram.updateItem(id, { icon });
+            swaps += 1;
+          }
+
+          frames += 1;
+
+          // Report a rolling average rather than a jittery per-frame figure.
+          const elapsed = performance.now() - t0;
+          if (elapsed >= 500) {
+            const fps = (frames / elapsed) * 1000;
+            $('m-churn-fps').textContent = `${fps.toFixed(0)} fps`;
+            $('m-churn-rate').textContent = fmt.count(
+              Math.round((swaps / elapsed) * 1000)
+            );
+            grade($('m-churn-fps'), fps, { good: 50, bad: 15 });
+            frames = 0;
+            swaps = 0;
+            t0 = performance.now();
+          }
+
+          churning = requestAnimationFrame(tick);
+        };
+
+        churning = requestAnimationFrame(tick);
+      };
+
+      $('randomize').addEventListener('click', () => {
+        if (churning) {
+          stopChurn();
+          return;
+        }
+
+        startChurn(lastCount);
+      });
 
       $('presets').addEventListener('click', (e) => {
         const button = e.target.closest('button[data-count]');
