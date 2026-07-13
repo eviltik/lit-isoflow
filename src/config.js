@@ -57,9 +57,21 @@ export const TEXTBOX_DEFAULTS = {
 export const TEXTBOX_PADDING = 0.2;
 export const TEXTBOX_FONT_WEIGHT = 'bold';
 
-export const ZOOM_INCREMENT = 0.2;
+/** Facteur d'un cran de zoom (multiplicatif : ×1,25 en avant, ÷1,25 en arrière). */
+export const ZOOM_STEP = 1.25;
 export const MIN_ZOOM = 0.2;
-export const MAX_ZOOM = 1;
+
+/**
+ * Plafond du zoom manuel. Isoflow le fixait à 1 (100 %), ce qui interdisait
+ * d'agrandir pour placer une icône précisément — sans raison technique.
+ */
+export const MAX_ZOOM = 4;
+
+/**
+ * Plafond du zoom appliqué par `fit()`. Distinct de MAX_ZOOM : ajuster un
+ * petit schéma ne doit pas l'agrandir au-delà de sa taille naturelle.
+ */
+export const MAX_FIT_ZOOM = 1;
 export const TRANSFORM_ANCHOR_SIZE = 30;
 export const TRANSFORM_CONTROLS_COLOR = '#0392ff';
 

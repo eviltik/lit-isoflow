@@ -32,6 +32,7 @@ import {
   PROJECTED_TILE_SIZE,
   UNPROJECTED_TILE_SIZE,
   MAX_ZOOM,
+  MAX_FIT_ZOOM,
   MIN_ZOOM
 } from '../src/config.js';
 
@@ -163,11 +164,18 @@ test('bounding boxes: offset expands the box on every side', () => {
   assert.deepEqual(box[2], { x: 1, y: 2 });
 });
 
-test('zoom: increments clamp to the configured range', () => {
-  assert.equal(incrementZoom(0.6), 0.8);
-  assert.equal(decrementZoom(0.6), 0.4);
+test('zoom: multiplicative steps, clamped to the configured range', () => {
+  // Each step is ×1.25, so the increment scales with the current zoom.
+  assert.equal(incrementZoom(1), 1.25);
+  assert.equal(decrementZoom(1.25), 1);
+  assert.equal(incrementZoom(0.4), 0.5);
+
   assert.equal(incrementZoom(MAX_ZOOM), MAX_ZOOM);
   assert.equal(decrementZoom(MIN_ZOOM), MIN_ZOOM);
+
+  // Zooming in past 100% is allowed — that is the whole point of MAX_ZOOM > 1.
+  assert.ok(incrementZoom(1) > 1);
+  assert.ok(MAX_ZOOM > 1);
 });
 
 test('pathfinder: finds a path within a grid', () => {
@@ -288,17 +296,18 @@ test('hit testing: items take priority, empty tiles return null', () => {
   assert.equal(getItemAtTile({ tile: { x: -20, y: -20 }, scene }), null);
 });
 
-test('fit to view: zoom never exceeds MAX_ZOOM and scroll centers the content', () => {
+test('fit to view: never enlarges past 100%, and centres the content', () => {
   const { zoom, scroll } = getFitToViewParams(view, { width: 400, height: 300 });
 
-  assert.ok(zoom > 0 && zoom <= MAX_ZOOM);
+  assert.ok(zoom > 0 && zoom <= MAX_FIT_ZOOM);
   assert.equal(typeof scroll.x, 'number');
   assert.equal(typeof scroll.y, 'number');
 
-  // A huge viewport still clamps to MAX_ZOOM.
+  // Fitting a small diagram into a huge viewport must not blow it up, even
+  // though the user may zoom in past 100% by hand (MAX_ZOOM > MAX_FIT_ZOOM).
   assert.equal(
     getFitToViewParams(view, { width: 100000, height: 100000 }).zoom,
-    MAX_ZOOM
+    MAX_FIT_ZOOM
   );
 });
 

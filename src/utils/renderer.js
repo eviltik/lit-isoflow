@@ -6,8 +6,9 @@
 import {
   UNPROJECTED_TILE_SIZE,
   PROJECTED_TILE_SIZE,
-  ZOOM_INCREMENT,
+  ZOOM_STEP,
   MAX_ZOOM,
+  MAX_FIT_ZOOM,
   MIN_ZOOM,
   TEXTBOX_PADDING,
   CONNECTOR_SEARCH_OFFSET,
@@ -18,7 +19,7 @@ import {
 } from '../config.js';
 import { CoordsUtils } from './coords.js';
 import { SizeUtils } from './size.js';
-import { clamp, roundToOneDecimalPlace, toPx, getItemByIdOrThrow } from './common.js';
+import { clamp, toPx, getItemByIdOrThrow } from './common.js';
 import { findPath } from './pathfinder.js';
 
 /** @typedef {import('./coords.js').Coords} Coords */
@@ -145,12 +146,21 @@ export const getIsoProjectionCss = (orientation) => {
   return `matrix(${getIsoMatrix(orientation).join(', ')})`;
 };
 
+/**
+ * Le zoom est multiplicatif (chaque cran vaut ×1,25) et non additif comme
+ * chez Isoflow : sur une plage de 0,2 à 4, un pas fixe de 0,2 donnerait des
+ * crans énormes en bas et interminables en haut.
+ */
 export const incrementZoom = (zoom) => {
-  return roundToOneDecimalPlace(clamp(zoom + ZOOM_INCREMENT, MIN_ZOOM, MAX_ZOOM));
+  return roundZoom(clamp(zoom * ZOOM_STEP, MIN_ZOOM, MAX_ZOOM));
 };
 
 export const decrementZoom = (zoom) => {
-  return roundToOneDecimalPlace(clamp(zoom - ZOOM_INCREMENT, MIN_ZOOM, MAX_ZOOM));
+  return roundZoom(clamp(zoom / ZOOM_STEP, MIN_ZOOM, MAX_ZOOM));
+};
+
+const roundZoom = (zoom) => {
+  return Math.round(zoom * 100) / 100;
 };
 
 export const getAllAnchors = (connectors) => {
@@ -536,7 +546,9 @@ export const getFitToViewParams = (view, viewportSize) => {
       viewportSize.height / unprojectedBounds.height
     ),
     0,
-    MAX_ZOOM
+    // Ajuster ne doit jamais agrandir au-delà de la taille naturelle, même si
+    // le zoom manuel, lui, peut aller plus loin.
+    MAX_FIT_ZOOM
   );
   const scrollTarget = {
     x: (sortedCornerPositions.lowX + boundingBoxSize.width / 2) * zoom,
