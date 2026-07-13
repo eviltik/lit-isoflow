@@ -65,8 +65,6 @@ text boxes, node labels.
 
 ```bash
 npm install lit-isoflow
-# not on npm yet? install straight from GitHub:
-npm install github:eviltik/lit-isoflow
 ```
 
 ## Usage
