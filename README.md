@@ -12,7 +12,11 @@ web component — a React-free port of
 The model format (JSON) is interchangeable with Isoflow/FossFLOW exports: diagrams
 created there render here, and vice versa.
 
-### ▶ [Try the live demo](https://eviltik.github.io/lit-isoflow/)
+### ▶ [Try the live demos](https://eviltik.github.io/lit-isoflow/)
+
+Two of them: the [editor](https://eviltik.github.io/lit-isoflow/editor/) (the full
+component) and a [stress test](https://eviltik.github.io/lit-isoflow/stress/) (up
+to 10 000 nodes, with the numbers).
 
 [![lit-isoflow editor](docs/assets/screenshot-editor.png)](https://eviltik.github.io/lit-isoflow/)
 
@@ -108,8 +112,12 @@ npm install github:eviltik/lit-isoflow
 
 ### Methods
 
-- `zoomIn()` / `zoomOut()` — same zoom steps as Isoflow (0.2 → 1.0)
-- `fit()` — fit the whole view inside the viewport
+- `zoomIn()` / `zoomOut()` — multiplicative steps (×1.25), from 0.01 to 4. The
+  floor is that low on purpose: a diagram of several thousand nodes only fits on
+  screen at a few percent.
+- `fit()` — fit the whole view inside the viewport, measured on what is actually
+  painted (icons, labels, connector paths) rather than the tile bounding box,
+  which overestimates by roughly 3×
 - `setTool(tool, options?)` — activate an editing tool: `'CURSOR'`, `'PAN'`,
   `'PLACE_ICON'` (`options.iconId`), `'CONNECTOR'`, `'RECTANGLE'`, `'TEXTBOX'`
 - `tool` (getter) — currently active tool
@@ -122,6 +130,9 @@ npm install github:eviltik/lit-isoflow
 - `getSelectedItem()` / `updateItem()` / `updateViewItem()` / `updateConnector()`
   / `updateRectangle()` / `updateTextBox()` — property-panel API, see
   “Wiring a property panel” below
+- `createRectangle({ from, to, color?, id? })` / `deleteRectangle(id)` — place a
+  zone programmatically (importing, templating, generating), rather than only by
+  drawing it with the mouse. Returns the new id.
 - `exportSvg(options?)` — renders the view to **vector SVG**. Returns
   `{ svg, width, height }`. Options: `showGrid` (default false), `background`
   (default `'transparent'`), `margin` (default 0.15 tiles). A thin wrapper around
@@ -191,8 +202,9 @@ brings its own UI kit. The wiring contract is three parts:
 3. **Persist** by listening to `model-updated` (debounced) or calling
    `getModel()` whenever you save.
 
-The demo ([demo/index.html](demo/index.html)) implements a complete panel with
-plain HTML inputs — no dependency — and is the reference example.
+The editor demo ([demo/editor/index.html](demo/editor/index.html)) implements a
+complete panel with plain HTML inputs — no dependency — and is the reference
+example.
 
 **Rich descriptions:** `modelItem.description` is an **HTML string**
 (≤ 1000 chars; upstream Isoflow edits it with Quill and uses `<p><br></p>` as
@@ -322,8 +334,36 @@ diagram.strings = {
 
 Everything else on screen comes from your model (node names, labels) or from your
 own UI. The demo ships a ~40-line, dependency-free i18n module
-([demo/i18n.js](demo/i18n.js)) — dictionary per language, `t()` helper, browser
-detection, `localStorage` persistence — as a reference for host apps.
+([demo/shared/i18n.js](demo/shared/i18n.js)) — dictionary per language, `t()`
+helper, browser detection, `localStorage` persistence — as a reference for host
+apps.
+
+## Performance
+
+Nodes are real DOM subtrees (roughly nine elements each, three without a label),
+which buys hit-testing, CSS, and accessibility — and sets a ceiling. Two things
+keep that ceiling far away:
+
+- **Off-screen nodes are not mounted.** Only what the viewport shows is in the
+  DOM.
+- **A node's template is rebuilt only when that node changed.** Its rendering
+  depends on exactly four things — view item, model item, resolved icon, theme —
+  and mutations replace those objects rather than editing them in place, so
+  identity is a sound change signal.
+
+Together, they make interaction **independent of model size**. Measured with the
+[stress demo](https://eviltik.github.io/lit-isoflow/stress/) at the working zoom,
+1 000 and 10 000 nodes both hold ~60 fps while panning and under live mutation
+(~3 000 icon swaps per second).
+
+The honest limit: **zoom all the way out to fit a huge diagram and every node is
+on screen, so every node is mounted.** Reconciling 10 000 live DOM subtrees costs
+~120 ms per frame no matter how little has changed — around 2 fps. If you need to
+fly over diagrams that big, this is the wall, and the answer is level-of-detail
+(paint a dot, not a subtree, when an icon is 7 px wide), not a faster renderer.
+
+Run the numbers yourself: the stress demo generates up to 10 000 nodes and reports
+first render, DOM size, and frame rate — including the bad ones.
 
 ## Security
 
