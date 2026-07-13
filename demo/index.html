@@ -729,13 +729,13 @@
         button.dataset.tool = tool;
         button.dataset.i18nTip = tip;
         button.innerHTML = ICONS[icon];
-        button.addEventListener('click', () => {
+        button.addEventListener('click', (event) => {
           if (tool === 'PLACE_ICON') {
             diagram.setTool(tool, { iconId: placeIconId });
             if (iconPopover.classList.contains('open')) {
               iconPopover.classList.remove('open');
             } else {
-              openGallery('place');
+              openGallery('place', event);
             }
             return;
           }
@@ -850,7 +850,11 @@
       gallerySearch.addEventListener('input', renderGallery);
       galleryCollection.addEventListener('change', renderGallery);
 
-      const openGallery = (mode) => {
+      const openGallery = (mode, event) => {
+        // Sans cela, le clic qui ouvre la galerie continue vers le gestionnaire
+        // « clic à l'extérieur » (plus bas), qui la referme aussitôt.
+        event?.stopPropagation();
+
         galleryMode = mode;
         renderGallery();
         iconPopover.classList.add('open');
@@ -1056,7 +1060,7 @@
           iconButton.innerHTML = currentIcon
             ? `<img src="${currentIcon.url}" alt="" /><span>${currentIcon.name}</span>`
             : `<span>${t('gallery.choose')}</span>`;
-          iconButton.addEventListener('click', () => openGallery('assign'));
+          iconButton.addEventListener('click', (event) => openGallery('assign', event));
           field(t('panel.icon'), iconButton);
         } else if (selected.type === 'CONNECTOR') {
           field(
