@@ -13,6 +13,7 @@
 import { LitElement, html, svg, css, nothing } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { styleMap } from 'lit/directives/style-map.js';
+import { repeat } from 'lit/directives/repeat.js';
 import {
   PROJECTED_TILE_SIZE,
   UNPROJECTED_TILE_SIZE,
@@ -50,6 +51,13 @@ import { interactionModes } from './editor/modes.js';
 import * as mutations from './editor/mutations.js';
 import { gridTileDataUri } from './assets/grid-tile.js';
 import { resolveTheme } from './theme.js';
+
+/**
+ * How far outside the viewport a node still counts as visible, in unzoomed
+ * scene pixels. Covers the widest label (250 px, see .label in the styles) and
+ * the tallest icon-plus-label stack, so nothing pops out while still on screen.
+ */
+const CULL_PADDING = { x: 300, y: 400 };
 
 const getStartingMode = (editorMode) => {
   switch (editorMode) {
@@ -1275,6 +1283,57 @@ export class LitIsoflow extends LitElement {
     };
   }
 
+  /**
+   * The slice of the scene currently on screen, in unzoomed scene pixels.
+   *
+   * A `.scene-layer` is anchored at the centre of the viewport (top/left: 50%)
+   * and then transformed by `translate(scroll) scale(zoom)`. So a scene point p
+   * lands on screen at `centre + scroll + p × zoom`; inverting that gives the
+   * visible rectangle in scene coordinates.
+   *
+   * This lives here, in the DOM component, and NOT in scene.js or renderer.js:
+   * those are shared with the headless SVG renderer (the one md2pdf uses to put
+   * diagrams in PDFs), where there is no viewport at all. Culling there would
+   * export an empty diagram.
+   *
+   * @returns {{ minX: number, maxX: number, minY: number, maxY: number } | null}
+   *   null when the viewport is not measured yet — render everything rather than
+   *   guess, since guessing wrong means showing nothing.
+   */
+  _viewportBounds() {
+    const size = this._lastSize;
+    if (!size?.width || !size?.height) return null;
+
+    const zoom = this._zoom;
+    const halfW = size.width / 2;
+    const halfH = size.height / 2;
+
+    // A node's position is its anchor point, but what it *paints* spills well
+    // beyond it: the icon reaches up from the anchor, and above that sits a
+    // label up to 250 px wide (the .label max-width in this component's CSS).
+    // Cull on the anchor alone and nodes would pop out while still half on
+    // screen. The padding is deliberately generous — being too wide costs a few
+    // nodes nobody sees, being too tight makes visible ones vanish.
+    const padX = CULL_PADDING.x;
+    const padY = CULL_PADDING.y;
+
+    return {
+      minX: (-halfW - this._scroll.x) / zoom - padX,
+      maxX: (halfW - this._scroll.x) / zoom + padX,
+      minY: (-halfH - this._scroll.y) / zoom - padY,
+      maxY: (halfH - this._scroll.y) / zoom + padY
+    };
+  }
+
+  /** Is this tile's node worth mounting? */
+  _isVisible(tile, bounds) {
+    if (!bounds) return true;
+
+    const { x, y } = getTilePosition({ tile, origin: 'BOTTOM' });
+
+    return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
+  }
+
   render() {
     if (this._modelError) {
       return html`<div
@@ -1291,6 +1350,15 @@ export class LitIsoflow extends LitElement {
     const layerStyles = { transform: layerTransform };
 
     const theme = this._theme;
+
+    // Nodes are the bulk of the DOM (roughly nine elements each, more with a
+    // label), so only the ones on screen are mounted. The reverse() is the
+    // isometric painter's order — near nodes must be drawn over far ones — and
+    // has to survive the filtering.
+    const bounds = this._viewportBounds();
+    const visibleItems = [...this._scene.items].reverse().filter((item) => {
+      return this._isVisible(item.tile, bounds);
+    });
 
     return html`
       <div
@@ -1336,9 +1404,11 @@ export class LitIsoflow extends LitElement {
           })}
         </div>
         <div class="scene-layer" style=${styleMap(layerStyles)}>
-          ${[...this._scene.items].reverse().map((item) => {
-            return this._renderNode(item);
-          })}
+          ${repeat(
+            visibleItems,
+            (item) => item.id,
+            (item) => this._renderNode(item)
+          )}
         </div>
         <div class="scene-layer controls" style=${styleMap(layerStyles)}>
           ${this._renderTransformControls()}
