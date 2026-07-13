@@ -37,6 +37,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@isoflow/isopacks": "^0.0.10",
     "vite": "^6.3.5"
   }
 }

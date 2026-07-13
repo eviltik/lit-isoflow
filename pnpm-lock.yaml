@@ -18,6 +18,9 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@isoflow/isopacks':
+        specifier: ^0.0.10
+        version: 0.0.10
       vite:
         specifier: ^6.3.5
         version: 6.4.3
@@ -179,6 +182,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@isoflow/isopacks@0.0.10':
+    resolution: {integrity: sha512-pR5vj2A83mPBCxgswD+tE8+/ftXmesv5Qy6sgNAuYxiyDw7Dng1zA1QnRKgxdvgsGH9qTDwak+53KzJuHeVTNg==}
 
   '@lit-labs/ssr-dom-shim@1.6.0':
     resolution: {integrity: sha512-VHb0ALPMTlgKjM6yIxxoQNnpKyUKLD04VzeQdsiXkMqkvYlAHxq9glGLmgbb889/1GsohSOAjvQYoiBppXFqrQ==}
@@ -502,6 +508,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.25.12':
     optional: true
+
+  '@isoflow/isopacks@0.0.10': {}
 
   '@lit-labs/ssr-dom-shim@1.6.0': {}
 

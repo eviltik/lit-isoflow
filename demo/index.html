@@ -5,119 +5,511 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>lit-isoflow — demo</title>
     <style>
+      :root {
+        --accent: #0392ff;
+        --accent-soft: #e3f2ff;
+        --text: #1c2430;
+        --text-muted: #67748a;
+        --card-bg: #ffffff;
+        --card-border: rgba(16, 34, 64, 0.08);
+        --card-shadow: 0 2px 6px rgba(16, 34, 64, 0.06), 0 12px 32px rgba(16, 34, 64, 0.1);
+        --hover: #f0f4f9;
+        --radius: 12px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
-        font-family: Roboto, Arial, sans-serif;
-        display: flex;
-        flex-direction: column;
         height: 100vh;
-      }
-
-      header {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 8px 16px;
-        border-bottom: 1px solid #ddd;
-        flex-wrap: wrap;
-      }
-
-      header h1 {
-        font-size: 16px;
-        margin: 0 16px 0 0;
-      }
-
-      .spacer {
-        margin-left: auto;
-      }
-
-      button.active {
-        background: #0392ff;
-        color: white;
-        border-color: #0392ff;
-      }
-
-      select {
-        max-width: 120px;
-      }
-
-      main {
-        display: flex;
-        flex: 1;
-        min-height: 0;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        color: var(--text);
+        font-size: 13px;
       }
 
       lit-isoflow {
-        flex: 1;
+        position: absolute;
+        inset: 0;
       }
 
-      aside {
-        width: 260px;
-        border-left: 1px solid #ddd;
-        padding: 12px;
-        overflow-y: auto;
+      /* ---------- floating cards ---------- */
+
+      .card {
+        position: absolute;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius);
+        box-shadow: var(--card-shadow);
+        z-index: 10;
+      }
+
+      .brand {
+        top: 16px;
+        left: 16px;
+        padding: 8px 14px;
+        font-weight: 700;
         font-size: 13px;
+        letter-spacing: 0.2px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
       }
 
-      aside[hidden] {
+      .brand .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: linear-gradient(135deg, var(--accent), #7cc3ff);
+        transform: rotate(45deg);
+      }
+
+      .brand .version {
+        color: var(--text-muted);
+        font-weight: 400;
+      }
+
+      /* ---------- toolbar ---------- */
+
+      .toolbar {
+        top: 60px;
+        left: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px;
+      }
+
+      .toolbar hr {
+        border: none;
+        border-top: 1px solid var(--card-border);
+        margin: 4px 6px;
+      }
+
+      button.icon-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 9px;
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+        position: relative;
+      }
+
+      button.icon-btn:hover {
+        background: var(--hover);
+      }
+
+      button.icon-btn.active {
+        background: var(--accent);
+        color: #ffffff;
+      }
+
+      button.icon-btn:disabled {
+        opacity: 0.35;
+        cursor: default;
+        background: transparent;
+      }
+
+      button.icon-btn svg {
+        width: 19px;
+        height: 19px;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      /* tooltip */
+      button.icon-btn::after {
+        content: attr(data-tip);
+        position: absolute;
+        left: calc(100% + 10px);
+        top: 50%;
+        transform: translateY(-50%);
+        background: #222b38;
+        color: #fff;
+        padding: 5px 9px;
+        border-radius: 6px;
+        font-size: 11.5px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.12s;
+      }
+
+      button.icon-btn:hover::after {
+        opacity: 1;
+      }
+
+      /* ---------- icon gallery popover ---------- */
+
+      .icon-popover {
+        position: absolute;
+        top: 60px;
+        left: 72px;
+        width: 396px;
         display: none;
+        flex-direction: column;
+        z-index: 20;
+        overflow: hidden;
       }
 
-      aside h2 {
-        font-size: 13px;
-        margin: 0 0 12px;
-        color: #666;
+      .icon-popover.open {
+        display: flex;
       }
 
-      aside label {
-        display: block;
-        margin: 10px 0 4px;
+      .icon-popover .gallery-header {
+        display: flex;
+        gap: 6px;
+        padding: 10px;
+        border-bottom: 1px solid var(--card-border);
+      }
+
+      .icon-popover .gallery-header input {
+        flex: 1;
+        font: inherit;
+        border: 1px solid rgba(16, 34, 64, 0.14);
+        border-radius: 8px;
+        padding: 6px 9px;
+        outline: none;
+      }
+
+      .icon-popover .gallery-header input:focus {
+        border-color: var(--accent);
+      }
+
+      .icon-popover .gallery-header select {
+        font: inherit;
+        border: 1px solid rgba(16, 34, 64, 0.14);
+        border-radius: 8px;
+        padding: 6px;
+        background: #fff;
+        outline: none;
+      }
+
+      .icon-popover .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        padding: 10px;
+        max-height: 380px;
+        overflow-y: auto;
+      }
+
+      .icon-popover .gallery-grid button {
+        border: 1px solid transparent;
+        border-radius: 9px;
+        background: transparent;
+        cursor: pointer;
+        padding: 8px 4px 6px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        font-size: 10.5px;
+        color: var(--text-muted);
+        font-family: inherit;
+        min-width: 0;
+      }
+
+      .icon-popover .gallery-grid button span {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .icon-popover .gallery-grid button:hover {
+        background: var(--hover);
+      }
+
+      .icon-popover .gallery-grid button.selected {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--text);
+      }
+
+      .icon-popover .gallery-grid img {
+        width: 56px;
+        height: 60px;
+        object-fit: contain;
+      }
+
+      .icon-popover .gallery-more {
+        padding: 0 12px 10px;
+        color: var(--text-muted);
+        font-size: 11px;
+      }
+
+      /* ---------- top-right: mode switch + export ---------- */
+
+      .top-right {
+        top: 16px;
+        right: 16px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px;
+      }
+
+      .segmented {
+        display: flex;
+        background: var(--hover);
+        border-radius: 9px;
+        padding: 3px;
+        gap: 2px;
+      }
+
+      .segmented button {
+        border: none;
+        background: transparent;
+        border-radius: 7px;
+        padding: 6px 12px;
+        font: inherit;
+        font-weight: 600;
+        color: var(--text-muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .segmented button svg {
+        width: 15px;
+        height: 15px;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .segmented button.active {
+        background: #ffffff;
+        color: var(--text);
+        box-shadow: 0 1px 4px rgba(16, 34, 64, 0.14);
+      }
+
+      /* ---------- zoom controls ---------- */
+
+      .zoom-card {
+        bottom: 16px;
+        left: 16px;
+        display: flex;
+        align-items: center;
+        padding: 4px;
+        gap: 2px;
+      }
+
+      .zoom-card .zoom-value {
+        min-width: 46px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-muted);
         font-weight: 600;
       }
 
-      aside input,
-      aside textarea,
-      aside select {
-        width: 100%;
-        max-width: none;
-        box-sizing: border-box;
-        font: inherit;
+      /* ---------- shortcut hints ---------- */
+
+      .hints {
+        position: absolute;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(34, 43, 56, 0.85);
+        color: #dbe4f0;
+        padding: 7px 14px;
+        border-radius: 999px;
+        font-size: 11.5px;
+        z-index: 10;
+        pointer-events: none;
       }
 
-      aside textarea {
-        min-height: 90px;
+      .hints b {
+        color: #ffffff;
+        font-weight: 600;
+      }
+
+      /* ---------- property panel ---------- */
+
+      .panel {
+        top: 60px;
+        right: 16px;
+        width: 264px;
+        padding: 16px;
+        max-height: calc(100vh - 140px);
+        overflow-y: auto;
+      }
+
+      .panel[hidden] {
+        display: none;
+      }
+
+      .panel .panel-type {
+        display: inline-block;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        margin-bottom: 4px;
+      }
+
+      .panel .panel-id {
+        color: var(--text-muted);
+        font-size: 11px;
+        margin-bottom: 10px;
+        font-family: ui-monospace, monospace;
+      }
+
+      .panel label {
+        display: block;
+        margin: 12px 0 5px;
+        font-weight: 600;
+        font-size: 12px;
+      }
+
+      .panel input,
+      .panel textarea,
+      .panel select {
+        width: 100%;
+        font: inherit;
+        color: var(--text);
+        background: #fbfcfe;
+        border: 1px solid rgba(16, 34, 64, 0.14);
+        border-radius: 8px;
+        padding: 7px 9px;
+        outline: none;
+      }
+
+      .panel input:focus,
+      .panel textarea:focus,
+      .panel select:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(3, 146, 255, 0.15);
+      }
+
+      .panel textarea {
+        min-height: 88px;
         resize: vertical;
+      }
+
+      .panel .swatches {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .panel .swatch {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        border: 2px solid transparent;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .panel .swatch.selected {
+        border-color: var(--text);
+      }
+
+      .panel .icon-field {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        font: inherit;
+        color: var(--text);
+        background: #fbfcfe;
+        border: 1px solid rgba(16, 34, 64, 0.14);
+        border-radius: 8px;
+        padding: 6px 9px;
+        cursor: pointer;
+      }
+
+      .panel .icon-field:hover {
+        border-color: var(--accent);
+      }
+
+      .panel .icon-field img {
+        width: 24px;
+        height: 26px;
+        object-fit: contain;
+      }
+
+      .panel .delete-row {
+        margin-top: 16px;
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .panel .delete-row button {
+        border: none;
+        background: #fdecec;
+        color: #c0392b;
+        font: inherit;
+        font-weight: 600;
+        padding: 7px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      .panel .delete-row button:hover {
+        background: #f9d9d7;
+      }
+
+      body[data-mode='viewer'] .toolbar,
+      body[data-mode='viewer'] .panel,
+      body[data-mode='viewer'] .hints,
+      body[data-mode='viewer'] .icon-popover {
+        display: none;
       }
     </style>
   </head>
-  <body>
-    <header>
-      <h1>lit-isoflow</h1>
-      <button id="tool-cursor" data-tool="CURSOR" title="Sélectionner / déplacer">➤ Sélection</button>
-      <button id="tool-pan" data-tool="PAN" title="Déplacer la vue (ou maintenir Shift/Espace)">✋ Pan</button>
-      <select id="icon-picker" title="Icône à placer"></select>
-      <button id="tool-place" data-tool="PLACE_ICON" title="Placer une icône">＋ Icône</button>
-      <button id="tool-connector" data-tool="CONNECTOR" title="Tracer un connecteur">→ Connecteur</button>
-      <button id="tool-rectangle" data-tool="RECTANGLE" title="Dessiner une zone">▭ Zone</button>
-      <button id="tool-textbox" data-tool="TEXTBOX" title="Ajouter du texte">T Texte</button>
-      <button id="delete" title="Supprimer la sélection (Suppr)">🗑</button>
-      <button id="undo" title="Annuler (Ctrl+Z)" disabled>↩</button>
-      <button id="redo" title="Rétablir (Ctrl+Y)" disabled>↪</button>
-      <span class="spacer"></span>
-      <span id="status"></span>
-      <span id="zoom-label">zoom: 100%</span>
-      <button id="zoom-out">−</button>
-      <button id="zoom-in">+</button>
-      <button id="fit">Ajuster</button>
-      <button id="export">Exporter JSON</button>
-    </header>
-    <main>
-      <lit-isoflow editor-mode="EDITABLE" fit-to-view></lit-isoflow>
-      <aside id="panel" hidden>
-        <h2 id="panel-title"></h2>
-        <div id="panel-fields"></div>
-      </aside>
-    </main>
+  <body data-mode="editor">
+    <lit-isoflow editor-mode="EDITABLE" fit-to-view></lit-isoflow>
+
+    <div class="card brand">
+      <span class="dot"></span> lit-isoflow <span class="version">demo</span>
+    </div>
+
+    <div class="card top-right">
+      <div class="segmented" id="mode-switch"></div>
+      <button class="icon-btn" id="export" data-tip="Exporter le JSON"></button>
+    </div>
+
+    <div class="card toolbar" id="toolbar"></div>
+    <div class="card icon-popover" id="icon-popover"></div>
+
+    <div class="card zoom-card">
+      <button class="icon-btn" id="zoom-out" data-tip="Zoom arrière"></button>
+      <span class="zoom-value" id="zoom-label">100%</span>
+      <button class="icon-btn" id="zoom-in" data-tip="Zoom avant"></button>
+      <button class="icon-btn" id="fit" data-tip="Ajuster à la vue"></button>
+    </div>
+
+    <div class="hints">
+      <b>Shift/Espace</b> pan&nbsp;&nbsp;·&nbsp;&nbsp;<b>Suppr</b> supprimer&nbsp;&nbsp;·&nbsp;&nbsp;<b>Ctrl+Z / Ctrl+Y</b> annuler / rétablir
+    </div>
+
+    <div class="card panel" id="panel" hidden>
+      <span class="panel-type" id="panel-type"></span>
+      <div class="panel-id" id="panel-id"></div>
+      <div id="panel-fields"></div>
+      <div class="delete-row">
+        <button id="panel-delete">Supprimer</button>
+      </div>
+    </div>
 
     <script type="module">
       import '../src/index.js';
@@ -126,36 +518,233 @@
       const diagram = document.querySelector('lit-isoflow');
       diagram.model = demoModel;
 
-      const iconPicker = document.querySelector('#icon-picker');
-      demoModel.icons.forEach((icon) => {
-        const option = document.createElement('option');
-        option.value = icon.id;
-        option.textContent = icon.name;
-        iconPicker.appendChild(option);
+      /* ---------- inline SVG icons (24x24 stroke paths) ---------- */
+      const svg = (paths) =>
+        `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
+
+      const ICONS = {
+        cursor: svg('<path d="M4 3l7.2 17 2.4-7.4L21 10.2 4 3z"/>'),
+        pan: svg('<path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/>'),
+        place: svg('<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M12 8.5v7M8.5 12h7"/>'),
+        connector: svg('<circle cx="5" cy="19" r="2.2"/><path d="M6.8 17.2L17 7"/><path d="M11.5 6H18v6.5"/>'),
+        zone: svg('<rect x="4" y="4" width="16" height="16" rx="2.5" stroke-dasharray="4 3"/>'),
+        text: svg('<path d="M5 7V4.5h14V7M9.5 19.5h5M12 4.5v15"/>'),
+        trash: svg('<path d="M4 6.5h16M9 6.5V4.5h6v2M18.5 6.5L17.5 20h-11l-1-13.5M10 10.5v6M14 10.5v6"/>'),
+        undo: svg('<path d="M4 7v6h6"/><path d="M20 17a8 8 0 00-13.5-5.8L4 13"/>'),
+        redo: svg('<path d="M20 7v6h-6"/><path d="M4 17a8 8 0 0113.5-5.8L20 13"/>'),
+        minus: svg('<path d="M6 12h12"/>'),
+        plus: svg('<path d="M6 12h12M12 6v12"/>'),
+        fit: svg('<path d="M8 4H6a2 2 0 00-2 2v2M16 4h2a2 2 0 012 2v2M16 20h2a2 2 0 002-2v-2M8 20H6a2 2 0 01-2-2v-2"/>'),
+        download: svg('<path d="M20 15v3.5a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18.5V15M7.5 10.5L12 15l4.5-4.5M12 15V4"/>'),
+        eye: svg('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>'),
+        pencil: svg('<path d="M16.8 3.7a2.3 2.3 0 013.4 3.4L7.5 19.8 3 21l1.2-4.5L16.8 3.7z"/>')
+      };
+
+      /* ---------- toolbar ---------- */
+      const toolbar = document.querySelector('#toolbar');
+      const iconPopover = document.querySelector('#icon-popover');
+      let placeIconId = 'server';
+
+      const TOOLS = [
+        { tool: 'CURSOR', icon: 'cursor', tip: 'Sélectionner / déplacer (V)' },
+        { tool: 'PAN', icon: 'pan', tip: 'Déplacer la vue (Shift/Espace)' },
+        { tool: 'PLACE_ICON', icon: 'place', tip: 'Placer une icône' },
+        { tool: 'CONNECTOR', icon: 'connector', tip: 'Tracer un connecteur' },
+        { tool: 'RECTANGLE', icon: 'zone', tip: 'Dessiner une zone' },
+        { tool: 'TEXTBOX', icon: 'text', tip: 'Ajouter du texte' }
+      ];
+
+      TOOLS.forEach(({ tool, icon, tip }) => {
+        const button = document.createElement('button');
+        button.className = 'icon-btn';
+        button.dataset.tool = tool;
+        button.dataset.tip = tip;
+        button.innerHTML = ICONS[icon];
+        button.addEventListener('click', () => {
+          if (tool === 'PLACE_ICON') {
+            diagram.setTool(tool, { iconId: placeIconId });
+            if (iconPopover.classList.contains('open')) {
+              iconPopover.classList.remove('open');
+            } else {
+              openGallery('place');
+            }
+            return;
+          }
+          iconPopover.classList.remove('open');
+          diagram.setTool(tool, { iconId: placeIconId });
+        });
+        toolbar.appendChild(button);
       });
 
-      const toolButtons = document.querySelectorAll('button[data-tool]');
+      toolbar.insertAdjacentHTML('beforeend', '<hr />');
+
+      const actionButton = (id, icon, tip, onClick) => {
+        const button = document.createElement('button');
+        button.className = 'icon-btn';
+        button.id = id;
+        button.dataset.tip = tip;
+        button.innerHTML = ICONS[icon];
+        button.addEventListener('click', onClick);
+        toolbar.appendChild(button);
+        return button;
+      };
+
+      const undoButton = actionButton('undo', 'undo', 'Annuler (Ctrl+Z)', () => diagram.undo());
+      const redoButton = actionButton('redo', 'redo', 'Rétablir (Ctrl+Y)', () => diagram.redo());
+      const deleteButton = actionButton('delete', 'trash', 'Supprimer (Suppr)', () =>
+        diagram.deleteSelection()
+      );
+      undoButton.disabled = true;
+      redoButton.disabled = true;
+      deleteButton.disabled = true;
+
       const syncToolButtons = () => {
-        toolButtons.forEach((button) => {
+        toolbar.querySelectorAll('button[data-tool]').forEach((button) => {
           button.classList.toggle('active', button.dataset.tool === diagram.tool);
         });
       };
 
-      toolButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-          diagram.setTool(button.dataset.tool, { iconId: iconPicker.value });
-        });
-      });
-
       diagram.addEventListener('tool-changed', syncToolButtons);
 
-      // --- property panel: the reference example of grafting an editor ---
-      // Flow: item-selected → getSelectedItem() → render fields → update* on input.
-      // Swap the description <textarea> for any rich text editor (tiptap,
-      // Quill…) producing HTML — see the README.
+      /* ---------- icon gallery (search + pack filter) ----------
+         Reused in two modes: 'place' (stamp tool) and 'assign'
+         (swap the selected node's icon from the property panel). */
+      const GALLERY_MAX = 60;
+      const collections = [...new Set(demoModel.icons.map((icon) => icon.collection))];
+      let galleryMode = 'place';
+
+      iconPopover.innerHTML = `
+        <div class="gallery-header">
+          <input type="search" placeholder="Rechercher une icône…" id="gallery-search" />
+          <select id="gallery-collection">
+            ${collections.map((name) => `<option>${name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="gallery-grid" id="gallery-grid"></div>
+        <div class="gallery-more" id="gallery-more"></div>
+      `;
+
+      const gallerySearch = iconPopover.querySelector('#gallery-search');
+      const galleryCollection = iconPopover.querySelector('#gallery-collection');
+      const galleryGrid = iconPopover.querySelector('#gallery-grid');
+      const galleryMore = iconPopover.querySelector('#gallery-more');
+
+      const renderGallery = () => {
+        const term = gallerySearch.value.trim().toLowerCase();
+        const matches = demoModel.icons.filter((icon) => {
+          return (
+            icon.collection === galleryCollection.value &&
+            (!term || icon.name.toLowerCase().includes(term) || icon.id.toLowerCase().includes(term))
+          );
+        });
+
+        galleryGrid.replaceChildren();
+        matches.slice(0, GALLERY_MAX).forEach((icon) => {
+          const button = document.createElement('button');
+          button.innerHTML = `<img src="${icon.url}" alt="" loading="lazy" /><span>${icon.name}</span>`;
+          if (galleryMode === 'place' && icon.id === placeIconId) {
+            button.classList.add('selected');
+          }
+          button.addEventListener('click', () => {
+            iconPopover.classList.remove('open');
+            if (galleryMode === 'place') {
+              placeIconId = icon.id;
+              diagram.setTool('PLACE_ICON', { iconId: placeIconId });
+            } else {
+              const selected = diagram.getSelectedItem();
+              if (selected?.type === 'ITEM') {
+                diagram.updateItem(selected.id, { icon: icon.id });
+                renderPanel({ type: 'ITEM', id: selected.id });
+              }
+            }
+          });
+          galleryGrid.appendChild(button);
+        });
+
+        galleryMore.textContent =
+          matches.length > GALLERY_MAX
+            ? `${matches.length - GALLERY_MAX} autres icônes — affinez la recherche`
+            : matches.length === 0
+              ? 'Aucune icône ne correspond'
+              : '';
+      };
+
+      gallerySearch.addEventListener('input', renderGallery);
+      galleryCollection.addEventListener('change', renderGallery);
+
+      const openGallery = (mode) => {
+        galleryMode = mode;
+        renderGallery();
+        iconPopover.classList.add('open');
+        gallerySearch.focus();
+      };
+
+      /* ---------- mode switch: éditeur / visionneuse ---------- */
+      const modeSwitch = document.querySelector('#mode-switch');
+      [
+        { mode: 'editor', label: 'Éditeur', icon: 'pencil', editorMode: 'EDITABLE' },
+        { mode: 'viewer', label: 'Visionneuse', icon: 'eye', editorMode: 'EXPLORABLE_READONLY' }
+      ].forEach(({ mode, label, icon, editorMode }) => {
+        const button = document.createElement('button');
+        button.innerHTML = `${ICONS[icon]}<span>${label}</span>`;
+        button.classList.toggle('active', mode === 'editor');
+        button.addEventListener('click', () => {
+          document.body.dataset.mode = mode;
+          diagram.editorMode = editorMode;
+          modeSwitch.querySelectorAll('button').forEach((other) => {
+            other.classList.remove('active');
+          });
+          button.classList.add('active');
+          renderPanel(null);
+        });
+        modeSwitch.appendChild(button);
+      });
+
+      /* ---------- zoom / fit / export ---------- */
+      document.querySelector('#zoom-out').innerHTML = ICONS.minus;
+      document.querySelector('#zoom-in').innerHTML = ICONS.plus;
+      document.querySelector('#fit').innerHTML = ICONS.fit;
+      document.querySelector('#export').innerHTML = ICONS.download;
+
+      const zoomLabel = document.querySelector('#zoom-label');
+      diagram.addEventListener('zoom-changed', (event) => {
+        zoomLabel.textContent = `${Math.round(event.detail.zoom * 100)}%`;
+      });
+      document.querySelector('#zoom-in').addEventListener('click', () => diagram.zoomIn());
+      document.querySelector('#zoom-out').addEventListener('click', () => diagram.zoomOut());
+      document.querySelector('#fit').addEventListener('click', () => diagram.fit());
+      document.querySelector('#export').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(diagram.getModel(), null, 2)], {
+          type: 'application/json'
+        });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'diagram.json';
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+
+      /* ---------- history state ---------- */
+      diagram.addEventListener('history-changed', (event) => {
+        undoButton.disabled = !event.detail.canUndo;
+        redoButton.disabled = !event.detail.canRedo;
+      });
+
+      /* ---------- property panel (reference example of grafting an editor) ---------- */
       const panel = document.querySelector('#panel');
-      const panelTitle = document.querySelector('#panel-title');
+      const panelType = document.querySelector('#panel-type');
+      const panelId = document.querySelector('#panel-id');
       const panelFields = document.querySelector('#panel-fields');
+      document.querySelector('#panel-delete').addEventListener('click', () => {
+        diagram.deleteSelection();
+      });
+
+      const TYPE_LABELS = {
+        ITEM: 'Nœud',
+        CONNECTOR: 'Connecteur',
+        RECTANGLE: 'Zone',
+        TEXTBOX: 'Texte'
+      };
 
       const field = (labelText, inputEl) => {
         const label = document.createElement('label');
@@ -184,24 +773,39 @@
         return select;
       };
 
-      const colorOptions = () =>
-        diagram.getModel().colors.map((color) => [color.id, `${color.id} (${color.value})`]);
+      const colorSwatches = (current, onChange) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'swatches';
+        diagram.getModel().colors.forEach((color) => {
+          const swatch = document.createElement('button');
+          swatch.className = 'swatch';
+          swatch.style.background = color.value;
+          swatch.title = color.id;
+          if (color.id === current) swatch.classList.add('selected');
+          swatch.addEventListener('click', () => {
+            wrapper.querySelectorAll('.swatch').forEach((other) => {
+              other.classList.remove('selected');
+            });
+            swatch.classList.add('selected');
+            onChange(color.id);
+          });
+          wrapper.appendChild(swatch);
+        });
+        return wrapper;
+      };
 
       const renderPanel = (item) => {
         panelFields.replaceChildren();
-        if (!item) {
-          panel.hidden = true;
-          return;
-        }
+        const selected = item ? diagram.getSelectedItem() : null;
 
-        const selected = diagram.getSelectedItem();
         if (!selected) {
           panel.hidden = true;
           return;
         }
 
         panel.hidden = false;
-        panelTitle.textContent = `${selected.type} — ${selected.id.slice(0, 8)}`;
+        panelType.textContent = TYPE_LABELS[selected.type] ?? selected.type;
+        panelId.textContent = selected.id;
 
         if (selected.type === 'ITEM') {
           field('Nom', textInput(selected.modelItem.name, (value) => {
@@ -215,16 +819,21 @@
           });
           field('Description (HTML)', textarea);
 
-          field('Icône', selectInput(
-            diagram.getModel().icons.map((icon) => [icon.id, icon.name]),
-            selected.modelItem.icon,
-            (value) => diagram.updateItem(selected.id, { icon: value })
-          ));
+          const currentIcon = diagram
+            .getModel()
+            .icons.find((icon) => icon.id === selected.modelItem.icon);
+          const iconButton = document.createElement('button');
+          iconButton.className = 'icon-field';
+          iconButton.innerHTML = currentIcon
+            ? `<img src="${currentIcon.url}" alt="" /><span>${currentIcon.name}</span>`
+            : '<span>Choisir…</span>';
+          iconButton.addEventListener('click', () => openGallery('assign'));
+          field('Icône', iconButton);
         } else if (selected.type === 'CONNECTOR') {
           field('Libellé', textInput(selected.connector.description, (value) => {
             diagram.updateConnector(selected.id, { description: value });
           }));
-          field('Couleur', selectInput(colorOptions(), selected.connector.color, (value) => {
+          field('Couleur', colorSwatches(selected.connector.color, (value) => {
             diagram.updateConnector(selected.id, { color: value });
           }));
           field('Style', selectInput(
@@ -233,7 +842,7 @@
             (value) => diagram.updateConnector(selected.id, { style: value })
           ));
         } else if (selected.type === 'RECTANGLE') {
-          field('Couleur', selectInput(colorOptions(), selected.rectangle.color, (value) => {
+          field('Couleur', colorSwatches(selected.rectangle.color, (value) => {
             diagram.updateRectangle(selected.id, { color: value });
           }));
         } else if (selected.type === 'TEXTBOX') {
@@ -249,57 +858,9 @@
       };
 
       diagram.addEventListener('item-selected', (event) => {
-        const item = event.detail.item;
-        document.querySelector('#status').textContent = item
-          ? `${item.type} ${item.id.slice(0, 8)}`
-          : '';
-        renderPanel(item);
+        renderPanel(event.detail.item);
+        deleteButton.disabled = !event.detail.item;
         syncToolButtons();
-      });
-      diagram.addEventListener('model-updated', () => {
-        document.querySelector('#status').textContent = 'modèle modifié ✓';
-      });
-
-      document.querySelector('#delete').addEventListener('click', () => {
-        diagram.deleteSelection();
-      });
-
-      const undoButton = document.querySelector('#undo');
-      const redoButton = document.querySelector('#redo');
-      undoButton.addEventListener('click', () => {
-        diagram.undo();
-      });
-      redoButton.addEventListener('click', () => {
-        diagram.redo();
-      });
-      diagram.addEventListener('history-changed', (event) => {
-        undoButton.disabled = !event.detail.canUndo;
-        redoButton.disabled = !event.detail.canRedo;
-      });
-
-      const zoomLabel = document.querySelector('#zoom-label');
-      diagram.addEventListener('zoom-changed', (event) => {
-        zoomLabel.textContent = `zoom: ${Math.round(event.detail.zoom * 100)}%`;
-      });
-
-      document.querySelector('#zoom-in').addEventListener('click', () => {
-        diagram.zoomIn();
-      });
-      document.querySelector('#zoom-out').addEventListener('click', () => {
-        diagram.zoomOut();
-      });
-      document.querySelector('#fit').addEventListener('click', () => {
-        diagram.fit();
-      });
-      document.querySelector('#export').addEventListener('click', () => {
-        const blob = new Blob([JSON.stringify(diagram.getModel(), null, 2)], {
-          type: 'application/json'
-        });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'diagram.json';
-        link.click();
-        URL.revokeObjectURL(link.href);
       });
 
       syncToolButtons();

@@ -1,20 +1,40 @@
 # lit-isoflow
 
-Isometric infrastructure diagrams as a **Lit web component** — a React-free port of
+**Viewer and editor for isometric infrastructure diagrams**, as a single Lit
+web component — a React-free port of
 [Isoflow](https://github.com/markmanx/isoflow) / FossFLOW.
 
 The model format (JSON) is interchangeable with Isoflow/FossFLOW exports: diagrams
 created there render here, and vice versa.
 
-> **Status: phase 2 — renderer + editing.**
-> Rendering: grid, nodes (isometric & flat icons), connectors (A* routing,
-> solid/dashed/dotted, direction arrows, labels), rectangles, text boxes, node
-> labels, pan & zoom, fit-to-view.
-> Editing (`editor-mode="EDITABLE"`): select & drag items, draw connectors
-> (anchored to items or tiles), re-anchor or bend connectors by dragging their
-> anchors/path, draw & resize rectangles, place icons, add text boxes, delete
-> selection, undo/redo. Item property panels (name, color, description…) are
-> up to the host app for now (phase 3).
+## One component, three modes
+
+The `editor-mode` attribute selects what `<lit-isoflow>` is:
+
+| Mode                        | What you get | Typical use |
+| --------------------------- | ------------ | ----------- |
+| `EXPLORABLE_READONLY` *(default)* | **Viewer** — pan, zoom, fit-to-view; the model is never mutated | embedding a diagram in docs, dashboards, read-only apps |
+| `EDITABLE`                  | **Editor** — everything below: tools, selection, drag, drawing, undo/redo, property API | diagram authoring UI |
+| `NON_INTERACTIVE`           | **Static rendering** — no listeners at all | screenshots, PDF/PNG export pipelines, thumbnails |
+
+```html
+<!-- Viewer -->
+<lit-isoflow fit-to-view></lit-isoflow>
+
+<!-- Editor -->
+<lit-isoflow editor-mode="EDITABLE" fit-to-view></lit-isoflow>
+```
+
+Editing capabilities (`EDITABLE`): select & drag items, draw connectors
+(anchored to items or tiles), re-anchor or bend connectors by dragging their
+anchors/path, draw & resize rectangles, place icons, add text boxes, delete
+selection, gesture-level undo/redo, transient pan (hold Shift/Space).
+Property panels (name, color, description…) are provided by the host app —
+see “Wiring a property panel”.
+
+Rendering (all modes): grid, nodes (isometric & flat icons), connectors
+(A* routing, solid/dashed/dotted, direction arrows, labels), rectangles,
+text boxes, node labels.
 
 ## Install
 
@@ -163,7 +183,23 @@ Notes:
 Icons are plain image URLs (SVG/PNG, data URIs welcome), declared in `model.icons`.
 `isIsometric: true` renders the image as-is (pre-projected isometric artwork);
 `isIsometric: false` projects a flat image onto the isometric ground plane.
-Isoflow isopack icons work unchanged.
+
+The official icon packs work unchanged — the demo loads all five
+[@isoflow/isopacks](https://www.npmjs.com/package/@isoflow/isopacks)
+(Isoflow basic, AWS, Azure, GCP, Kubernetes — 1000+ icons) and exposes them in
+a searchable gallery:
+
+```js
+import isoflowIsopack from '@isoflow/isopacks/dist/isoflow';
+
+const icons = isoflowIsopack.icons.map((icon) => ({ ...icon, collection: 'Isoflow' }));
+diagram.model = { ...model, icons };
+```
+
+Icon artwork belongs to its respective owners (AWS, Microsoft, Google, CNCF,
+Isoflow); check the isopacks repository for per-collection licences. That is
+why `@isoflow/isopacks` is a dev-dependency of the demo, not a dependency of
+this package.
 
 > Note: node `description` fields contain HTML (rich text in Isoflow) and are
 > rendered as-is. Only feed models from trusted sources.

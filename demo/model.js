@@ -1,4 +1,28 @@
-import { demoIcons } from './icons.js';
+/**
+ * Demo model built on real Isoflow icon packs (@isoflow/isopacks,
+ * dev-dependency): the same icons as isoflow.io / FossFLOW.
+ * Icon artwork belongs to its respective owners (AWS, Microsoft, Google,
+ * CNCF, Isoflow) — see the isopacks repository for licence details.
+ */
+import isoflowIsopack from '@isoflow/isopacks/dist/isoflow';
+import awsIsopack from '@isoflow/isopacks/dist/aws';
+import azureIsopack from '@isoflow/isopacks/dist/azure';
+import gcpIsopack from '@isoflow/isopacks/dist/gcp';
+import kubernetesIsopack from '@isoflow/isopacks/dist/kubernetes';
+
+const flatten = (pack, collection) => {
+  return pack.icons.map((icon) => {
+    return { ...icon, collection };
+  });
+};
+
+export const demoIcons = [
+  ...flatten(isoflowIsopack, 'Isoflow'),
+  ...flatten(awsIsopack, 'AWS'),
+  ...flatten(azureIsopack, 'Azure'),
+  ...flatten(gcpIsopack, 'GCP'),
+  ...flatten(kubernetesIsopack, 'Kubernetes')
+];
 
 export const demoModel = {
   version: '1.0.0',
@@ -7,19 +31,21 @@ export const demoModel = {
   colors: [
     { id: 'blue', value: '#a5b8f3' },
     { id: 'green', value: '#a8e3c0' },
-    { id: 'red', value: '#e39d9d' }
+    { id: 'yellow', value: '#f3e3a5' },
+    { id: 'red', value: '#e3a5a5' },
+    { id: 'purple', value: '#d3a5e3' }
   ],
   items: [
     {
       id: 'client1',
       name: 'Poste client',
-      icon: 'client',
+      icon: 'laptop',
       description: '<p>Navigateur web</p>'
     },
-    { id: 'gw1', name: 'Passerelle', icon: 'gateway' },
+    { id: 'gw1', name: 'Passerelle', icon: 'router' },
     { id: 'web1', name: 'Serveur web 1', icon: 'server' },
     { id: 'web2', name: 'Serveur web 2', icon: 'server' },
-    { id: 'db1', name: 'Base de données', icon: 'database' }
+    { id: 'db1', name: 'Base de données', icon: 'storage' }
   ],
   views: [
     {
