@@ -305,8 +305,8 @@
       </div>
 
       <div class="toggles">
-        <label><input id="labels" type="checkbox" checked /> Labels</label>
-        <label><input id="grid" type="checkbox" checked /> Grid</label>
+        <label><input id="labels" type="checkbox" /> Labels</label>
+        <label><input id="grid" type="checkbox" /> Grid</label>
       </div>
 
       <button class="run" id="run">Run</button>
@@ -500,6 +500,10 @@
       $('grid').addEventListener('change', () => {
         diagram.showGrid = $('grid').checked;
       });
+
+      // The component defaults showGrid to true, so the checkbox has to impose
+      // its own state up front rather than wait for the first run.
+      diagram.showGrid = $('grid').checked;
     </script>
   </body>
 </html>
