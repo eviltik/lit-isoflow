@@ -694,4 +694,38 @@ export const renderToSvg = (model, options = {}) => {
   return { svg, width, height };
 };
 
+/**
+ * Encombrement réel du contenu d'une vue, en pixels de scène (zoom 1), et
+ * position de son centre par rapport à l'origine du plan isométrique.
+ *
+ * C'est la même mesure que celle du rendu SVG : elle tient compte des
+ * étiquettes, des icônes et du tracé réel des connecteurs, là où les bornes en
+ * espace-tuiles (getUnprojectedBounds) surestiment largement — d'un facteur 3
+ * sur un petit schéma, ce qui donnait un « ajuster à la vue » ridiculement
+ * dézoomé.
+ *
+ * @param {object} model
+ * @param {{ viewId?: string, margin?: number }} [options]
+ * @returns {{ width: number, height: number, centre: { x: number, y: number } }}
+ */
+export const getContentBox = (model, options = {}) => {
+  const { viewId, margin = 0.15 } = options;
+
+  const parsed = modelSchema.parse({ ...INITIAL_DATA, ...model });
+  const scene = deriveScene(parsed, viewId);
+
+  const icons = {};
+  parsed.icons.forEach((icon) => {
+    icons[icon.id] = intrinsicSize(icon.url) ?? { width: 1, height: 1 };
+  });
+
+  const { minX, minY, width, height } = contentBounds(scene, parsed, icons, margin);
+
+  return {
+    width,
+    height,
+    centre: { x: minX + width / 2, y: minY + height / 2 }
+  };
+};
+
 export { DIAGRAM_BACKGROUND_COLOR };

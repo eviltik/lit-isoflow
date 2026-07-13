@@ -26,6 +26,8 @@ import {
   TRANSFORM_CONTROLS_COLOR,
   MARKDOWN_EMPTY_VALUE,
   DEFAULT_STRINGS,
+  MIN_ZOOM,
+  MAX_FIT_ZOOM,
   INITIAL_DATA
 } from './config.js';
 import { modelSchema } from './schemas.js';
@@ -41,13 +43,11 @@ import {
   getMouse,
   incrementZoom,
   decrementZoom,
-  getFitToViewParams,
-  getUnprojectedBounds,
   convertBoundsToNamedAnchors,
   outermostCornerPositions
 } from './utils/renderer.js';
-import { getColorVariant, toPx, generateId } from './utils/common.js';
-import { renderToSvg } from './render-svg.js';
+import { getColorVariant, toPx, generateId, clamp } from './utils/common.js';
+import { renderToSvg, getContentBox } from './render-svg.js';
 import { interactionModes } from './editor/modes.js';
 import * as mutations from './editor/mutations.js';
 import { gridTileDataUri } from './assets/grid-tile.js';
@@ -405,17 +405,34 @@ export class LitIsoflow extends LitElement {
 
   /** Fits the current view inside the viewport. */
   fit() {
-    if (!this._scene) return;
+    if (!this._scene || !this._workingModel) return;
 
-    const size = {
+    const viewport = {
       width: this.clientWidth || 1,
       height: this.clientHeight || 1
     };
-    const { zoom, scroll } = getFitToViewParams(this._scene.view, size);
 
+    // On mesure le contenu réellement dessiné (étiquettes, icônes, tracé des
+    // connecteurs), et non la bounding box en espace-tuiles : celle-ci
+    // surestime d'un facteur ~3, ce qui laissait le schéma minuscule.
+    const content = getContentBox(this._workingModel, {
+      viewId: this.viewId || undefined
+    });
+
+    const zoom = clamp(
+      Math.min(viewport.width / content.width, viewport.height / content.height),
+      MIN_ZOOM,
+      MAX_FIT_ZOOM
+    );
+
+    // Les couches de scène sont ancrées au centre du conteneur : amener le
+    // centre du contenu au centre de la vue revient à le décaler de -centre.
     this._animated = true;
     this._zoom = zoom;
-    this._scroll = scroll;
+    this._scroll = {
+      x: -content.centre.x * zoom,
+      y: -content.centre.y * zoom
+    };
     this._emitZoom();
   }
 
@@ -662,12 +679,15 @@ export class LitIsoflow extends LitElement {
   async exportPng({ scale = 2, showGrid = false, background, margin = 0.15 } = {}) {
     if (!this._scene) throw new Error('No model loaded.');
 
-    // Generous first layout based on the projected tile bounding box; the
-    // canvas is then tightened to the actually rendered content, which the
-    // tile-space diamond largely overestimates.
-    const bounds = getUnprojectedBounds(this._scene.view);
-    let width = Math.ceil(bounds.width);
-    let height = Math.ceil(bounds.height);
+    // Taille du contenu réellement dessiné ; le clone est ensuite resserré au
+    // pixel près par mesure du DOM (les métriques de texte du navigateur sont
+    // plus fines que notre estimation).
+    const content = getContentBox(this._workingModel, {
+      viewId: this.viewId || undefined,
+      margin
+    });
+    let width = content.width;
+    let height = content.height;
 
     const clone = document.createElement('lit-isoflow');
     clone.editorMode = 'NON_INTERACTIVE';
@@ -689,9 +709,10 @@ export class LitIsoflow extends LitElement {
       await clone.updateComplete;
       clone._animated = false;
       clone._zoom = 1;
+      // Centre du contenu ramené au centre du clone (couches ancrées au centre).
       clone._scroll = {
-        x: -width / 2 - bounds.x,
-        y: -height / 2 - bounds.y
+        x: -content.centre.x,
+        y: -content.centre.y
       };
       await settle();
 
