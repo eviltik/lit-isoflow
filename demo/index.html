@@ -41,8 +41,52 @@
         max-width: 120px;
       }
 
+      main {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+
       lit-isoflow {
         flex: 1;
+      }
+
+      aside {
+        width: 260px;
+        border-left: 1px solid #ddd;
+        padding: 12px;
+        overflow-y: auto;
+        font-size: 13px;
+      }
+
+      aside[hidden] {
+        display: none;
+      }
+
+      aside h2 {
+        font-size: 13px;
+        margin: 0 0 12px;
+        color: #666;
+      }
+
+      aside label {
+        display: block;
+        margin: 10px 0 4px;
+        font-weight: 600;
+      }
+
+      aside input,
+      aside textarea,
+      aside select {
+        width: 100%;
+        max-width: none;
+        box-sizing: border-box;
+        font: inherit;
+      }
+
+      aside textarea {
+        min-height: 90px;
+        resize: vertical;
       }
     </style>
   </head>
@@ -50,7 +94,7 @@
     <header>
       <h1>lit-isoflow</h1>
       <button id="tool-cursor" data-tool="CURSOR" title="Sélectionner / déplacer">➤ Sélection</button>
-      <button id="tool-pan" data-tool="PAN" title="Déplacer la vue">✋ Pan</button>
+      <button id="tool-pan" data-tool="PAN" title="Déplacer la vue (ou maintenir Shift/Espace)">✋ Pan</button>
       <select id="icon-picker" title="Icône à placer"></select>
       <button id="tool-place" data-tool="PLACE_ICON" title="Placer une icône">＋ Icône</button>
       <button id="tool-connector" data-tool="CONNECTOR" title="Tracer un connecteur">→ Connecteur</button>
@@ -67,7 +111,13 @@
       <button id="fit">Ajuster</button>
       <button id="export">Exporter JSON</button>
     </header>
-    <lit-isoflow editor-mode="EDITABLE" fit-to-view></lit-isoflow>
+    <main>
+      <lit-isoflow editor-mode="EDITABLE" fit-to-view></lit-isoflow>
+      <aside id="panel" hidden>
+        <h2 id="panel-title"></h2>
+        <div id="panel-fields"></div>
+      </aside>
+    </main>
 
     <script type="module">
       import '../src/index.js';
@@ -98,11 +148,112 @@
       });
 
       diagram.addEventListener('tool-changed', syncToolButtons);
+
+      // --- property panel: the reference example of grafting an editor ---
+      // Flow: item-selected → getSelectedItem() → render fields → update* on input.
+      // Swap the description <textarea> for any rich text editor (tiptap,
+      // Quill…) producing HTML — see the README.
+      const panel = document.querySelector('#panel');
+      const panelTitle = document.querySelector('#panel-title');
+      const panelFields = document.querySelector('#panel-fields');
+
+      const field = (labelText, inputEl) => {
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        panelFields.append(label, inputEl);
+        return inputEl;
+      };
+
+      const textInput = (value, onInput) => {
+        const input = document.createElement('input');
+        input.value = value ?? '';
+        input.addEventListener('input', () => onInput(input.value));
+        return input;
+      };
+
+      const selectInput = (options, value, onChange) => {
+        const select = document.createElement('select');
+        options.forEach(([optionValue, optionLabel]) => {
+          const option = document.createElement('option');
+          option.value = optionValue;
+          option.textContent = optionLabel;
+          select.appendChild(option);
+        });
+        select.value = value ?? options[0]?.[0] ?? '';
+        select.addEventListener('change', () => onChange(select.value));
+        return select;
+      };
+
+      const colorOptions = () =>
+        diagram.getModel().colors.map((color) => [color.id, `${color.id} (${color.value})`]);
+
+      const renderPanel = (item) => {
+        panelFields.replaceChildren();
+        if (!item) {
+          panel.hidden = true;
+          return;
+        }
+
+        const selected = diagram.getSelectedItem();
+        if (!selected) {
+          panel.hidden = true;
+          return;
+        }
+
+        panel.hidden = false;
+        panelTitle.textContent = `${selected.type} — ${selected.id.slice(0, 8)}`;
+
+        if (selected.type === 'ITEM') {
+          field('Nom', textInput(selected.modelItem.name, (value) => {
+            diagram.updateItem(selected.id, { name: value });
+          }));
+
+          const textarea = document.createElement('textarea');
+          textarea.value = selected.modelItem.description ?? '';
+          textarea.addEventListener('input', () => {
+            diagram.updateItem(selected.id, { description: textarea.value });
+          });
+          field('Description (HTML)', textarea);
+
+          field('Icône', selectInput(
+            diagram.getModel().icons.map((icon) => [icon.id, icon.name]),
+            selected.modelItem.icon,
+            (value) => diagram.updateItem(selected.id, { icon: value })
+          ));
+        } else if (selected.type === 'CONNECTOR') {
+          field('Libellé', textInput(selected.connector.description, (value) => {
+            diagram.updateConnector(selected.id, { description: value });
+          }));
+          field('Couleur', selectInput(colorOptions(), selected.connector.color, (value) => {
+            diagram.updateConnector(selected.id, { color: value });
+          }));
+          field('Style', selectInput(
+            [['SOLID', 'Plein'], ['DASHED', 'Tirets'], ['DOTTED', 'Pointillés']],
+            selected.connector.style ?? 'SOLID',
+            (value) => diagram.updateConnector(selected.id, { style: value })
+          ));
+        } else if (selected.type === 'RECTANGLE') {
+          field('Couleur', selectInput(colorOptions(), selected.rectangle.color, (value) => {
+            diagram.updateRectangle(selected.id, { color: value });
+          }));
+        } else if (selected.type === 'TEXTBOX') {
+          field('Texte', textInput(selected.textBox.content, (value) => {
+            diagram.updateTextBox(selected.id, { content: value });
+          }));
+          field('Taille', selectInput(
+            [['0.4', 'Petit'], ['0.6', 'Normal'], ['1', 'Grand']],
+            String(selected.textBox.fontSize ?? 0.6),
+            (value) => diagram.updateTextBox(selected.id, { fontSize: Number(value) })
+          ));
+        }
+      };
+
       diagram.addEventListener('item-selected', (event) => {
         const item = event.detail.item;
         document.querySelector('#status').textContent = item
           ? `${item.type} ${item.id.slice(0, 8)}`
           : '';
+        renderPanel(item);
         syncToolButtons();
       });
       diagram.addEventListener('model-updated', () => {

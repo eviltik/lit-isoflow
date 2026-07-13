@@ -71,7 +71,14 @@ npm install lit-isoflow
 - `deleteSelection()` — delete the selected item (also bound to the Delete key)
 - `undo()` / `redo()` — gesture-level history (also bound to Ctrl+Z / Ctrl+Y /
   Ctrl+Shift+Z); `canUndo` / `canRedo` getters
+
+Keyboard (EDITABLE): Delete removes the selection, Ctrl+Z / Ctrl+Y undo/redo,
+and holding **Shift** or **Space** pans temporarily — the active tool and
+selection are restored on release.
 - `getModel()` — deep snapshot of the current (possibly edited) model
+- `getSelectedItem()` / `updateItem()` / `updateViewItem()` / `updateConnector()`
+  / `updateRectangle()` / `updateTextBox()` — property-panel API, see
+  “Wiring a property panel” below
 
 ### Events
 
@@ -82,6 +89,74 @@ npm install lit-isoflow
 - `model-updated` — `detail.model` (debounced snapshot after each edit)
 - `tool-changed` — `detail.tool`
 - `history-changed` — `detail.canUndo` / `detail.canRedo`
+
+### Wiring a property panel / rich text editor
+
+`<lit-isoflow>` deliberately ships **no property panel and no rich text
+editor**: the canvas stays lean (lit + zod + pathfinding) and the host app
+brings its own UI kit. The wiring contract is three parts:
+
+1. **Listen to `item-selected`**, then call `getSelectedItem()` for the full
+   data of the selection:
+
+   ```js
+   diagram.addEventListener('item-selected', () => {
+     const selected = diagram.getSelectedItem();
+     // ITEM      → { type, id, modelItem: { name, description, icon }, viewItem: { tile, labelHeight } }
+     // CONNECTOR → { type, id, connector: { description, color, style, width, anchors } }
+     // RECTANGLE → { type, id, rectangle: { color, from, to } }
+     // TEXTBOX   → { type, id, textBox: { content, fontSize, orientation, tile } }
+     renderMyPanel(selected); // null when the selection is cleared
+   });
+   ```
+
+2. **Write changes back** through the update methods — each call re-renders
+   the scene, feeds the undo history and emits `model-updated`:
+
+   ```js
+   diagram.updateItem(id, { name, description, icon });
+   diagram.updateViewItem(id, { tile, labelHeight });
+   diagram.updateConnector(id, { description, color, style, width });
+   diagram.updateRectangle(id, { color });
+   diagram.updateTextBox(id, { content, fontSize, orientation });
+   ```
+
+3. **Persist** by listening to `model-updated` (debounced) or calling
+   `getModel()` whenever you save.
+
+The demo ([demo/index.html](demo/index.html)) implements a complete panel with
+plain HTML inputs — no dependency — and is the reference example.
+
+**Rich descriptions:** `modelItem.description` is an **HTML string**
+(≤ 1000 chars; upstream Isoflow edits it with Quill and uses `<p><br></p>` as
+its empty value). Any editor that produces HTML plugs in. With tiptap:
+
+```js
+import { Editor } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+
+let editor;
+diagram.addEventListener('item-selected', () => {
+  const selected = diagram.getSelectedItem();
+  editor?.destroy();
+  if (selected?.type !== 'ITEM') return;
+
+  editor = new Editor({
+    element: document.querySelector('#description-editor'),
+    extensions: [StarterKit],
+    content: selected.modelItem.description ?? '',
+    onUpdate: ({ editor }) => {
+      diagram.updateItem(selected.id, { description: editor.getHTML() });
+    }
+  });
+});
+```
+
+Notes:
+- Each keystroke burst (pauses < 250 ms) collapses into one undo step; debounce
+  `onUpdate` yourself if you want coarser steps.
+- Descriptions are rendered as-is in node labels — sanitize if models come from
+  untrusted sources.
 
 ### Icons
 

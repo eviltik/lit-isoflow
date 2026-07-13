@@ -278,8 +278,33 @@ export class LitIsoflow extends LitElement {
       this._handleMouseEvent({ clientX: 0, clientY: 0, type: 'mouseup', target: event.target, composedPath: () => event.composedPath() });
     };
     this._onWindowKeyDown = this._handleKeyDown.bind(this);
+    this._onWindowKeyUp = this._handleKeyUp.bind(this);
+    this._onWindowBlur = () => {
+      this._endTransientPan();
+    };
+    this._modeBeforePan = null;
 
+    this._lastSize = null;
     this._resizeObserver = new ResizeObserver(() => {
+      const size = { width: this.clientWidth, height: this.clientHeight };
+
+      // Scene layers are anchored at the container's center: without
+      // compensation, any host-driven resize (side drawer opening, window
+      // resize) shifts the whole diagram by half the size delta.
+      if (this._lastSize && this._scene) {
+        const deltaX = (size.width - this._lastSize.width) / 2;
+        const deltaY = (size.height - this._lastSize.height) / 2;
+
+        if (deltaX !== 0 || deltaY !== 0) {
+          this._animated = false;
+          this._scroll = {
+            x: this._scroll.x - deltaX,
+            y: this._scroll.y - deltaY
+          };
+        }
+      }
+
+      this._lastSize = size;
       this.requestUpdate();
     });
   }
@@ -294,6 +319,8 @@ export class LitIsoflow extends LitElement {
     window.addEventListener('touchmove', this._onWindowTouchMove);
     window.addEventListener('touchend', this._onWindowTouchEnd);
     window.addEventListener('keydown', this._onWindowKeyDown);
+    window.addEventListener('keyup', this._onWindowKeyUp);
+    window.addEventListener('blur', this._onWindowBlur);
   }
 
   disconnectedCallback() {
@@ -306,6 +333,8 @@ export class LitIsoflow extends LitElement {
     window.removeEventListener('touchmove', this._onWindowTouchMove);
     window.removeEventListener('touchend', this._onWindowTouchEnd);
     window.removeEventListener('keydown', this._onWindowKeyDown);
+    window.removeEventListener('keyup', this._onWindowKeyUp);
+    window.removeEventListener('blur', this._onWindowBlur);
     clearTimeout(this._modelUpdateTimer);
   }
 
@@ -502,6 +531,72 @@ export class LitIsoflow extends LitElement {
         composed: true
       })
     );
+  }
+
+  /**
+   * Full data for the current selection, for property panels:
+   * ITEM → { type, id, modelItem, viewItem }, others → { type, id, connector|rectangle|textBox }.
+   * Returns a deep copy; feed changes back through the update* methods.
+   */
+  getSelectedItem() {
+    if (!this._itemControls || !this._workingModel || !this._scene) return null;
+
+    const { type, id } = this._itemControls;
+    const view = this._scene.view;
+
+    const find = (arr) => {
+      return (arr ?? []).find((entry) => {
+        return entry.id === id;
+      });
+    };
+
+    let selected = null;
+    if (type === 'ITEM') {
+      selected = {
+        type,
+        id,
+        modelItem: find(this._workingModel.items),
+        viewItem: find(view.items)
+      };
+    } else if (type === 'CONNECTOR') {
+      selected = { type, id, connector: find(view.connectors) };
+    } else if (type === 'RECTANGLE') {
+      selected = { type, id, rectangle: find(view.rectangles) };
+    } else if (type === 'TEXTBOX') {
+      selected = { type, id, textBox: find(view.textBoxes) };
+    }
+
+    return selected ? structuredClone(selected) : null;
+  }
+
+  /** Updates a model item's properties (name, description as HTML, icon id). */
+  updateItem(id, updates) {
+    if (!this._scene) return;
+    this._sceneFacade().updateModelItem(id, updates);
+  }
+
+  /** Updates a view item (tile, labelHeight). */
+  updateViewItem(id, updates) {
+    if (!this._scene) return;
+    this._sceneFacade().updateViewItem(id, updates);
+  }
+
+  /** Updates a connector (description, color id, style, width, anchors). */
+  updateConnector(id, updates) {
+    if (!this._scene) return;
+    this._sceneFacade().updateConnector(id, updates);
+  }
+
+  /** Updates a rectangle (color id, from, to). */
+  updateRectangle(id, updates) {
+    if (!this._scene) return;
+    this._sceneFacade().updateRectangle(id, updates);
+  }
+
+  /** Updates a text box (content, fontSize, orientation, tile). */
+  updateTextBox(id, updates) {
+    if (!this._scene) return;
+    this._sceneFacade().updateTextBox(id, updates);
   }
 
   /** Deletes the currently selected item (also bound to the Delete key). */
@@ -784,6 +879,24 @@ export class LitIsoflow extends LitElement {
     )
       return;
 
+    // Hold Shift or Space for a transient pan: the current tool is restored
+    // on release. Ignored mid-drag and when a modifier shortcut is involved.
+    if (
+      (event.key === 'Shift' || event.key === ' ') &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !this._modeBeforePan &&
+      !this._mouse.mousedown &&
+      this._mode.type !== 'PAN' &&
+      this._mode.type !== 'INTERACTIONS_DISABLED'
+    ) {
+      if (event.key === ' ') event.preventDefault();
+      this._modeBeforePan = this._mode;
+      this._setMode({ type: 'PAN', showCursor: false });
+      this.requestUpdate();
+      return;
+    }
+
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
       event.preventDefault();
       if (event.shiftKey) this.redo();
@@ -804,6 +917,21 @@ export class LitIsoflow extends LitElement {
       event.preventDefault();
       this.deleteSelection();
     }
+  }
+
+  _handleKeyUp(event) {
+    if (event.key === 'Shift' || event.key === ' ') {
+      this._endTransientPan();
+    }
+  }
+
+  _endTransientPan() {
+    if (!this._modeBeforePan) return;
+
+    const restored = this._modeBeforePan;
+    this._modeBeforePan = null;
+    this._setMode({ ...restored });
+    this.requestUpdate();
   }
 
   _setMode(mode) {
