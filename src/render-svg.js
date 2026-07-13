@@ -209,16 +209,45 @@ const renderTextBoxes = (scene) => {
     .join('');
 };
 
+/**
+ * Size of a label box, from its content. Shared by the renderer and the bounds
+ * computation so the viewBox matches exactly what gets painted.
+ */
+const labelBoxSize = (lines, fontSize = LABEL_FONT_SIZE) => {
+  return {
+    width:
+      Math.min(
+        LABEL_MAX_WIDTH,
+        Math.max(...lines.map((line) => textWidthPx(line, fontSize)))
+      ) +
+      LABEL_PADDING_X * 2,
+    height: lines.length * LABEL_LINE_HEIGHT + LABEL_PADDING_Y * 2
+  };
+};
+
+/** The label lines of a node: its name, then its (flattened) description. */
+const nodeLabelLines = (modelItem) => {
+  const lines = [];
+
+  if (modelItem.name) {
+    lines.push(...wrapText(modelItem.name, LABEL_MAX_WIDTH, LABEL_FONT_SIZE));
+  }
+
+  const description =
+    modelItem.description && modelItem.description !== MARKDOWN_EMPTY_VALUE
+      ? htmlToText(modelItem.description)
+      : '';
+  if (description) {
+    lines.push(...wrapText(description, LABEL_MAX_WIDTH, LABEL_FONT_SIZE));
+  }
+
+  return lines;
+};
+
 /** A white rounded label box with centred text lines, in screen space. */
 const labelBox = (lines, x, y, anchor, extra = {}) => {
   const { fontSize = LABEL_FONT_SIZE, color = '#1c2430', bold = false } = extra;
-  const width =
-    Math.min(
-      LABEL_MAX_WIDTH,
-      Math.max(...lines.map((line) => textWidthPx(line, fontSize)))
-    ) +
-    LABEL_PADDING_X * 2;
-  const height = lines.length * LABEL_LINE_HEIGHT + LABEL_PADDING_Y * 2;
+  const { width, height } = labelBoxSize(lines, fontSize);
 
   // anchor: 'bottom' → the box sits above (x, y); 'center' → centred on it.
   const boxX = x - width / 2;
@@ -307,13 +336,7 @@ const renderNodes = (scene, model, icons, symbols) => {
       const labelHeight = item.labelHeight ?? DEFAULT_LABEL_HEIGHT;
       const labelAnchorY = PROJECTED_TILE_SIZE.height / 2;
 
-      const description =
-        modelItem.description && modelItem.description !== MARKDOWN_EMPTY_VALUE
-          ? htmlToText(modelItem.description)
-          : '';
-      const lines = [];
-      if (modelItem.name) lines.push(...wrapText(modelItem.name, LABEL_MAX_WIDTH, 11));
-      if (description) lines.push(...wrapText(description, LABEL_MAX_WIDTH, 11));
+      const lines = nodeLabelLines(modelItem);
 
       let parts = '';
 
@@ -371,7 +394,7 @@ const renderNodes = (scene, model, icons, symbols) => {
  * measured — the DOM-based exportPng() measures the same thing with
  * getBoundingClientRect().
  */
-const contentBounds = (scene, margin) => {
+const contentBounds = (scene, model, icons, margin) => {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -384,12 +407,19 @@ const contentBounds = (scene, margin) => {
     maxY = Math.max(maxY, y);
   };
 
-  /** The four projected corners of a tile-space surface. */
+  const includeBox = (x, y, width, height) => {
+    include(x, y);
+    include(x + width, y + height);
+  };
+
+  /**
+   * The four projected corners of a tile-space surface, each tile being a
+   * diamond that reaches half a tile out from its centre.
+   */
   const includeSurface = (from, to) => {
     getBoundingBox([from, to]).forEach((corner) => {
       const position = getTilePosition({ tile: corner });
 
-      // A tile is a diamond: its own corners reach half a tile out.
       include(position.x - PROJECTED_TILE_SIZE.width / 2, position.y);
       include(position.x + PROJECTED_TILE_SIZE.width / 2, position.y);
       include(position.x, position.y - PROJECTED_TILE_SIZE.height / 2);
@@ -401,8 +431,31 @@ const contentBounds = (scene, margin) => {
     includeSurface(rectangle.from, rectangle.to);
   });
 
+  // A connector's search rectangle is much wider than the path drawn inside it:
+  // bound the tiles actually walked, not the A* search area.
   scene.connectors.forEach((connector) => {
-    includeSurface(connector.path.rectangle.from, connector.path.rectangle.to);
+    connector.path.tiles.forEach((tile) => {
+      const globalTile = connectorPathTileToGlobal(tile, connector.path.rectangle.from);
+      const position = getTilePosition({ tile: globalTile });
+
+      include(position.x - PROJECTED_TILE_SIZE.width / 2, position.y);
+      include(position.x + PROJECTED_TILE_SIZE.width / 2, position.y);
+      include(position.x, position.y - PROJECTED_TILE_SIZE.height / 2);
+      include(position.x, position.y + PROJECTED_TILE_SIZE.height / 2);
+    });
+
+    if (connector.description) {
+      const tile = connector.path.tiles[Math.floor(connector.path.tiles.length / 2)];
+      if (tile) {
+        const position = getTilePosition({
+          tile: connectorPathTileToGlobal(tile, connector.path.rectangle.from)
+        });
+        const lines = wrapText(connector.description, 150, LABEL_FONT_SIZE);
+        const { width, height } = labelBoxSize(lines, 10);
+
+        includeBox(position.x - width / 2, position.y - height / 2, width, height);
+      }
+    }
   });
 
   scene.textBoxes.forEach((textBox) => {
@@ -413,19 +466,42 @@ const contentBounds = (scene, margin) => {
   });
 
   scene.items.forEach((item) => {
+    const modelItem = resolveModelItem(model, item.id);
+    if (!modelItem) return;
+
     const position = getTilePosition({ tile: item.tile, origin: 'BOTTOM' });
-    const iconWidth = PROJECTED_TILE_SIZE.width;
+    const icon = resolveIcon(model, modelItem.icon);
+
+    // Icon artwork, drawn upwards from the tile's bottom anchor — same maths as
+    // renderNodes(), so the box matches what is actually painted.
+    if (icon && icons[icon.id]) {
+      const iconWidth =
+        PROJECTED_TILE_SIZE.width * (icon.isIsometric === false ? 0.7 : 0.8);
+      const { width, height } = icons[icon.id];
+      const iconHeight = (height / width) * iconWidth;
+
+      includeBox(
+        position.x - iconWidth / 2,
+        position.y - iconHeight,
+        iconWidth,
+        iconHeight
+      );
+    } else {
+      // No artwork: the tile itself still occupies space.
+      includeSurface(item.tile, item.tile);
+    }
+
+    const lines = nodeLabelLines(modelItem);
+    if (lines.length === 0) return;
+
+    // Label box, sized to its content rather than to LABEL_MAX_WIDTH: a
+    // « Web 1 » label is 60 px wide, not 250, and over-reserving here is what
+    // pushed the viewBox out of balance.
     const labelHeight = item.labelHeight ?? DEFAULT_LABEL_HEIGHT;
+    const anchorY = position.y - PROJECTED_TILE_SIZE.height / 2 - labelHeight;
+    const { width, height } = labelBoxSize(lines, LABEL_FONT_SIZE);
 
-    // Icon artwork, drawn upwards from the tile's bottom anchor.
-    include(position.x - iconWidth / 2, position.y);
-    include(position.x + iconWidth / 2, position.y - iconWidth * 1.2);
-
-    // Label box above the icon (its width is capped, height is a line or two).
-    const labelTop =
-      position.y - PROJECTED_TILE_SIZE.height / 2 - labelHeight - LABEL_LINE_HEIGHT * 2;
-    include(position.x - LABEL_MAX_WIDTH / 2, labelTop);
-    include(position.x + LABEL_MAX_WIDTH / 2, labelTop);
+    includeBox(position.x - width / 2, anchorY - height, width, height);
   });
 
   if (minX === Infinity) {
@@ -565,7 +641,7 @@ export const renderToSvg = (model, options = {}) => {
     }
   });
 
-  const { minX, minY, width, height } = contentBounds(scene, margin);
+  const { minX, minY, width, height } = contentBounds(scene, parsed, icons, margin);
 
   const backgroundRect =
     background && background !== 'transparent'
