@@ -671,10 +671,16 @@ export const renderToSvg = (model, options = {}) => {
     ? `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="url(#iso-grid)"/>`
     : '';
 
+  // Le contenu est dessiné autour de l'origine du plan isométrique, donc à des
+  // coordonnées largement négatives. Plutôt que de décaler le repère via un
+  // viewBox négatif — que tous les consommateurs SVG ne gèrent pas (pdfmake
+  // dessine alors comme si le contenu partait de (0,0), d'où un cadrage
+  // décalé) — on garde un viewBox à l'origine et on translate le contenu.
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ` +
-    `viewBox="${minX} ${minY} ${width} ${height}" width="${width}" height="${height}">` +
+    `viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">` +
     defs +
+    `<g transform="translate(${-minX}, ${-minY})">` +
     backgroundRect +
     renderRectangles(scene) +
     gridRect +
@@ -682,6 +688,7 @@ export const renderToSvg = (model, options = {}) => {
     renderTextBoxes(scene) +
     renderConnectorLabels(scene) +
     renderNodes(scene, parsed, icons, symbols) +
+    `</g>` +
     `</svg>`;
 
   return { svg, width, height };
