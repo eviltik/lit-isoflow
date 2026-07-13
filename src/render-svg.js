@@ -596,7 +596,7 @@ const projectFlatIcon = (position) => {
  * @param {string} [options.viewId] - view to render (default: the first one)
  * @param {boolean} [options.showGrid=false] - draw the isometric grid
  * @param {string} [options.background] - CSS color, or 'transparent' (default)
- * @param {number} [options.margin=0.5] - padding around the content, in tiles
+ * @param {number} [options.margin=0.15] - padding around the content, in tiles
  * @param {Record<string, {width: number, height: number}>} [options.iconSizes]
  *   intrinsic size of each icon, keyed by icon id — needed to place artwork
  *   without a DOM to measure it. Defaults to a square tile.
@@ -611,7 +611,7 @@ export const renderToSvg = (model, options = {}) => {
     viewId,
     showGrid = false,
     background = 'transparent',
-    margin = 0.5,
+    margin = 0.15,
     iconSizes = {},
     inlineIcons = true
   } = options;

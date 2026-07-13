@@ -121,14 +121,14 @@ npm install github:eviltik/lit-isoflow
   “Wiring a property panel” below
 - `exportSvg(options?)` — renders the view to **vector SVG**. Returns
   `{ svg, width, height }`. Options: `showGrid` (default false), `background`
-  (default `'transparent'`), `margin` (default 0.5 tiles). A thin wrapper around
+  (default `'transparent'`), `margin` (default 0.15 tiles). A thin wrapper around
   `renderToSvg()` — see “Rendering without a browser”.
 - `exportPng(options?)` — renders the view to a PNG with no extra dependency
   (off-screen clone → SVG `foreignObject` → canvas), cropped tightly to the
   rendered content (icons, labels, connectors — not the tile bounding box).
   Returns `{ blob, dataUrl, width, height }`. Options: `scale` (default 2),
   `showGrid` (default false), `background` (any CSS color, including
-  `'transparent'`), `margin` (tiles around the content, default 0.5).
+  `'transparent'`), `margin` (tiles around the content, default 0.15).
   Icon URLs must be data URIs or same-origin (external images would taint
   the canvas); isopack icons are data URIs, so they just work.
 

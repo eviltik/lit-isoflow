@@ -656,10 +656,10 @@ export class LitIsoflow extends LitElement {
    * @param {{ scale?: number, showGrid?: boolean, background?: string, margin?: number }} [options]
    *   scale: pixel density multiplier (default 2);
    *   background: any CSS color, including 'transparent';
-   *   margin: padding around the content, in tiles (default 0.5).
+   *   margin: padding around the content, in tiles (default 0.15).
    * @returns {Promise<{ blob: Blob, dataUrl: string, width: number, height: number }>}
    */
-  async exportPng({ scale = 2, showGrid = false, background, margin = 0.5 } = {}) {
+  async exportPng({ scale = 2, showGrid = false, background, margin = 0.15 } = {}) {
     if (!this._scene) throw new Error('No model loaded.');
 
     // Generous first layout based on the projected tile bounding box; the
