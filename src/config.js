@@ -59,7 +59,16 @@ export const TEXTBOX_FONT_WEIGHT = 'bold';
 
 /** Facteur d'un cran de zoom (multiplicatif : ×1,25 en avant, ÷1,25 en arrière). */
 export const ZOOM_STEP = 1.25;
-export const MIN_ZOOM = 0.2;
+
+/**
+ * Plancher du zoom manuel. Volontairement très bas : un schéma de plusieurs
+ * milliers de nœuds ne tient à l'écran qu'à quelques pour cent, et l'ancienne
+ * valeur (0,2) interdisait de le voir en entier.
+ *
+ * Pas zéro pour autant : le zoom divise (écran → tuile, taille de la scène),
+ * donc 0 ferait exploser la géométrie. 1 % est le « à l'infini » utile.
+ */
+export const MIN_ZOOM = 0.01;
 
 /**
  * Plafond du zoom manuel. Isoflow le fixait à 1 (100 %), ce qui interdisait
