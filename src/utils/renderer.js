@@ -1,0 +1,385 @@
+/**
+ * Geometry engine ported from Isoflow's src/utils/renderer.ts.
+ * Everything here is pure: tile ↔ screen projection, bounding boxes,
+ * connector pathfinding and fit-to-view math.
+ */
+import {
+  UNPROJECTED_TILE_SIZE,
+  PROJECTED_TILE_SIZE,
+  ZOOM_INCREMENT,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  TEXTBOX_PADDING,
+  CONNECTOR_SEARCH_OFFSET,
+  DEFAULT_FONT_FAMILY,
+  TEXTBOX_DEFAULTS,
+  TEXTBOX_FONT_WEIGHT,
+  PROJECT_BOUNDING_BOX_PADDING
+} from '../config.js';
+import { CoordsUtils } from './coords.js';
+import { SizeUtils } from './size.js';
+import { clamp, roundToOneDecimalPlace, toPx, getItemByIdOrThrow } from './common.js';
+import { findPath } from './pathfinder.js';
+
+/** @typedef {import('./coords.js').Coords} Coords */
+/** @typedef {import('./size.js').Size} Size */
+/** @typedef {'CENTER'|'TOP'|'BOTTOM'|'LEFT'|'RIGHT'} TileOrigin */
+
+// Converts a mouse position to a tile position.
+export const screenToIso = ({ mouse, zoom, scroll, rendererSize }) => {
+  const projectedTileSize = SizeUtils.multiply(PROJECTED_TILE_SIZE, zoom);
+  const halfW = projectedTileSize.width / 2;
+  const halfH = projectedTileSize.height / 2;
+
+  const projectPosition = {
+    x: -rendererSize.width * 0.5 + mouse.x - scroll.position.x,
+    y: -rendererSize.height * 0.5 + mouse.y - scroll.position.y
+  };
+
+  return {
+    x: Math.floor(
+      (projectPosition.x + halfW) / projectedTileSize.width -
+        projectPosition.y / projectedTileSize.height
+    ),
+    y: -Math.floor(
+      (projectPosition.y + halfH) / projectedTileSize.height +
+        projectPosition.x / projectedTileSize.width
+    )
+  };
+};
+
+/**
+ * @param {{ tile: Coords, origin?: TileOrigin }} args
+ * @returns {Coords} position in unzoomed scene pixels, relative to tile (0, 0)
+ */
+export const getTilePosition = ({ tile, origin = 'CENTER' }) => {
+  const halfW = PROJECTED_TILE_SIZE.width / 2;
+  const halfH = PROJECTED_TILE_SIZE.height / 2;
+
+  const position = {
+    x: halfW * tile.x - halfW * tile.y,
+    y: -(halfH * tile.x + halfH * tile.y)
+  };
+
+  switch (origin) {
+    case 'TOP':
+      return CoordsUtils.add(position, { x: 0, y: -halfH });
+    case 'BOTTOM':
+      return CoordsUtils.add(position, { x: 0, y: halfH });
+    case 'LEFT':
+      return CoordsUtils.add(position, { x: -halfW, y: 0 });
+    case 'RIGHT':
+      return CoordsUtils.add(position, { x: halfW, y: 0 });
+    case 'CENTER':
+    default:
+      return position;
+  }
+};
+
+export const sortByPosition = (tiles) => {
+  const xSorted = [...tiles].sort((a, b) => {
+    return a.x - b.x;
+  });
+  const ySorted = [...tiles].sort((a, b) => {
+    return a.y - b.y;
+  });
+
+  return {
+    byX: xSorted,
+    byY: ySorted,
+    highest: { byX: xSorted[xSorted.length - 1], byY: ySorted[ySorted.length - 1] },
+    lowest: { byX: xSorted[0], byY: ySorted[0] },
+    lowX: xSorted[0].x,
+    highX: xSorted[xSorted.length - 1].x,
+    lowY: ySorted[0].y,
+    highY: ySorted[ySorted.length - 1].y
+  };
+};
+
+export const isWithinBounds = (tile, bounds) => {
+  const { lowX, lowY, highX, highY } = sortByPosition(bounds);
+
+  return tile.x >= lowX && tile.x <= highX && tile.y >= lowY && tile.y <= highY;
+};
+
+/**
+ * Returns the four corners of a grid that encapsulates all tiles
+ * passed in (at least 1 tile needed).
+ * @returns {[Coords, Coords, Coords, Coords]}
+ */
+export const getBoundingBox = (tiles, offset = CoordsUtils.zero()) => {
+  const { lowX, lowY, highX, highY } = sortByPosition(tiles);
+
+  return [
+    { x: lowX - offset.x, y: lowY - offset.y },
+    { x: highX + offset.x, y: lowY - offset.y },
+    { x: highX + offset.x, y: highY + offset.y },
+    { x: lowX - offset.x, y: highY + offset.y }
+  ];
+};
+
+/** @returns {Size} */
+export const getBoundingBoxSize = (boundingBox) => {
+  const { lowX, lowY, highX, highY } = sortByPosition(boundingBox);
+
+  return {
+    width: highX - lowX + 1,
+    height: highY - lowY + 1
+  };
+};
+
+const isoProjectionBaseValues = [0.707, -0.409, 0.707, 0.409, 0, -0.816];
+
+export const getIsoMatrix = (orientation) => {
+  if (orientation === 'Y') {
+    const values = [...isoProjectionBaseValues];
+    values[1] = -values[1];
+    values[2] = -values[2];
+    return values;
+  }
+
+  return isoProjectionBaseValues;
+};
+
+export const getIsoProjectionCss = (orientation) => {
+  return `matrix(${getIsoMatrix(orientation).join(', ')})`;
+};
+
+export const incrementZoom = (zoom) => {
+  return roundToOneDecimalPlace(clamp(zoom + ZOOM_INCREMENT, MIN_ZOOM, MAX_ZOOM));
+};
+
+export const decrementZoom = (zoom) => {
+  return roundToOneDecimalPlace(clamp(zoom - ZOOM_INCREMENT, MIN_ZOOM, MAX_ZOOM));
+};
+
+export const getAllAnchors = (connectors) => {
+  return connectors.reduce((acc, connector) => {
+    return [...acc, ...connector.anchors];
+  }, []);
+};
+
+/** @returns {Coords} */
+export const getAnchorTile = (anchor, view) => {
+  if (anchor.ref.item) {
+    return getItemByIdOrThrow(view.items, anchor.ref.item).value.tile;
+  }
+
+  if (anchor.ref.anchor) {
+    const allAnchors = getAllAnchors(view.connectors ?? []);
+    const nextAnchor = getItemByIdOrThrow(allAnchors, anchor.ref.anchor).value;
+
+    return getAnchorTile(nextAnchor, view);
+  }
+
+  if (anchor.ref.tile) {
+    return anchor.ref.tile;
+  }
+
+  throw new Error('Could not get anchor tile.');
+};
+
+/**
+ * Routes a connector through its anchors with A*.
+ * @returns {{ tiles: Coords[], rectangle: { from: Coords, to: Coords } }}
+ */
+export const getConnectorPath = ({ anchors, view }) => {
+  if (anchors.length < 2) {
+    throw new Error(`Connector needs at least two anchors (received: ${anchors.length})`);
+  }
+
+  const anchorPositions = anchors.map((anchor) => {
+    return getAnchorTile(anchor, view);
+  });
+
+  const searchArea = getBoundingBox(anchorPositions, CONNECTOR_SEARCH_OFFSET);
+  const sorted = sortByPosition(searchArea);
+  const searchAreaSize = getBoundingBoxSize(searchArea);
+  const rectangle = {
+    from: { x: sorted.highX, y: sorted.highY },
+    to: { x: sorted.lowX, y: sorted.lowY }
+  };
+
+  const normalisedPositions = anchorPositions.map((position) => {
+    return CoordsUtils.subtract(rectangle.from, position);
+  });
+
+  const tiles = normalisedPositions.reduce((acc, position, i) => {
+    if (i === 0) return acc;
+
+    const prev = normalisedPositions[i - 1];
+    const path = findPath({
+      from: prev,
+      to: position,
+      gridSize: searchAreaSize
+    });
+
+    return [...acc, ...path];
+  }, []);
+
+  return { tiles, rectangle };
+};
+
+/** Converts a tile from a connector path's local space back to global tile space. */
+export const connectorPathTileToGlobal = (tile, origin) => {
+  return CoordsUtils.subtract(
+    CoordsUtils.subtract(origin, CONNECTOR_SEARCH_OFFSET),
+    CoordsUtils.subtract(tile, CONNECTOR_SEARCH_OFFSET)
+  );
+};
+
+/**
+ * Measures rendered text via a canvas, in tile units.
+ * Matches Isoflow's getTextWidth so textbox layouts stay identical.
+ */
+export const getTextWidth = (text, fontProps) => {
+  if (!text) return 0;
+
+  const paddingX = TEXTBOX_PADDING * UNPROJECTED_TILE_SIZE;
+  const fontSizePx = toPx(fontProps.fontSize * UNPROJECTED_TILE_SIZE);
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    throw new Error('Could not get canvas context');
+  }
+
+  context.font = `${fontProps.fontWeight} ${fontSizePx} ${fontProps.fontFamily}`;
+  const metrics = context.measureText(text);
+
+  canvas.remove();
+
+  return (metrics.width + paddingX * 2) / UNPROJECTED_TILE_SIZE - 0.8;
+};
+
+/** @returns {Size} size in tile units */
+export const getTextBoxDimensions = (textBox) => {
+  const width = getTextWidth(textBox.content, {
+    fontSize: textBox.fontSize ?? TEXTBOX_DEFAULTS.fontSize,
+    fontFamily: DEFAULT_FONT_FAMILY,
+    fontWeight: TEXTBOX_FONT_WEIGHT
+  });
+
+  return { width, height: 1 };
+};
+
+/** Position and rotation of the arrow head along a connector path. */
+export const getConnectorDirectionIcon = (connectorTiles) => {
+  if (connectorTiles.length < 2) return null;
+
+  const iconTile = connectorTiles[connectorTiles.length - 2];
+  const lastTile = connectorTiles[connectorTiles.length - 1];
+
+  let rotation;
+
+  if (lastTile.x > iconTile.x) {
+    if (lastTile.y > iconTile.y) rotation = 135;
+    else if (lastTile.y < iconTile.y) rotation = 45;
+    else rotation = 90;
+  }
+
+  if (lastTile.x < iconTile.x) {
+    if (lastTile.y > iconTile.y) rotation = -135;
+    else if (lastTile.y < iconTile.y) rotation = -45;
+    else rotation = -90;
+  }
+
+  if (lastTile.x === iconTile.x) {
+    if (lastTile.y > iconTile.y) rotation = 180;
+    else if (lastTile.y < iconTile.y) rotation = 0;
+    else rotation = -90;
+  }
+
+  return {
+    x: iconTile.x * UNPROJECTED_TILE_SIZE + UNPROJECTED_TILE_SIZE / 2,
+    y: iconTile.y * UNPROJECTED_TILE_SIZE + UNPROJECTED_TILE_SIZE / 2,
+    rotation
+  };
+};
+
+/** The tile-space corners encompassing everything in a view (+ padding). */
+export const getProjectBounds = (view, padding = PROJECT_BOUNDING_BOX_PADDING) => {
+  const itemTiles = view.items.map((item) => {
+    return item.tile;
+  });
+
+  const connectorTiles = (view.connectors ?? []).reduce((acc, connector) => {
+    try {
+      const path = getConnectorPath({ anchors: connector.anchors, view });
+      return [...acc, path.rectangle.from, path.rectangle.to];
+    } catch {
+      return acc;
+    }
+  }, []);
+
+  const rectangleTiles = (view.rectangles ?? []).reduce((acc, rectangle) => {
+    return [...acc, rectangle.from, rectangle.to];
+  }, []);
+
+  const textBoxTiles = (view.textBoxes ?? []).reduce((acc, textBox) => {
+    const size = getTextBoxDimensions({ ...TEXTBOX_DEFAULTS, ...textBox });
+
+    return [
+      ...acc,
+      textBox.tile,
+      CoordsUtils.add(textBox.tile, { x: size.width, y: size.height })
+    ];
+  }, []);
+
+  let allTiles = [...itemTiles, ...connectorTiles, ...rectangleTiles, ...textBoxTiles];
+
+  if (allTiles.length === 0) {
+    const centerTile = CoordsUtils.zero();
+    allTiles = [centerTile];
+  }
+
+  return getBoundingBox(allTiles, { x: padding, y: padding });
+};
+
+export const getUnprojectedBounds = (view) => {
+  const projectBounds = getProjectBounds(view);
+
+  const cornerPositions = projectBounds.map((corner) => {
+    return getTilePosition({ tile: corner });
+  });
+  const sortedCorners = sortByPosition(cornerPositions);
+  const size = getBoundingBoxSize(cornerPositions);
+
+  return {
+    width: size.width,
+    height: size.height,
+    x: sortedCorners.lowX,
+    y: sortedCorners.lowY
+  };
+};
+
+export const getTileScrollPosition = (tile, origin) => {
+  const tilePosition = getTilePosition({ tile, origin });
+
+  return { x: -tilePosition.x, y: -tilePosition.y };
+};
+
+/** @returns {{ zoom: number, scroll: Coords }} */
+export const getFitToViewParams = (view, viewportSize) => {
+  const projectBounds = getProjectBounds(view);
+  const sortedCornerPositions = sortByPosition(projectBounds);
+  const boundingBoxSize = getBoundingBoxSize(projectBounds);
+  const unprojectedBounds = getUnprojectedBounds(view);
+  const zoom = clamp(
+    Math.min(
+      viewportSize.width / unprojectedBounds.width,
+      viewportSize.height / unprojectedBounds.height
+    ),
+    0,
+    MAX_ZOOM
+  );
+  const scrollTarget = {
+    x: (sortedCornerPositions.lowX + boundingBoxSize.width / 2) * zoom,
+    y: (sortedCornerPositions.lowY + boundingBoxSize.height / 2) * zoom
+  };
+
+  return {
+    zoom,
+    scroll: getTileScrollPosition(scrollTarget)
+  };
+};

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lit-isoflow — demo</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Roboto, Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-bottom: 1px solid #ddd;
+      }
+
+      header h1 {
+        font-size: 16px;
+        margin: 0 auto 0 0;
+      }
+
+      lit-isoflow {
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>lit-isoflow</h1>
+      <span id="zoom-label">zoom: 100%</span>
+      <button id="zoom-out">−</button>
+      <button id="zoom-in">+</button>
+      <button id="fit">Ajuster</button>
+    </header>
+    <lit-isoflow fit-to-view></lit-isoflow>
+
+    <script type="module">
+      import '../src/index.js';
+      import { demoModel } from './model.js';
+
+      const diagram = document.querySelector('lit-isoflow');
+      diagram.model = demoModel;
+
+      const zoomLabel = document.querySelector('#zoom-label');
+      diagram.addEventListener('zoom-changed', (event) => {
+        zoomLabel.textContent = `zoom: ${Math.round(event.detail.zoom * 100)}%`;
+      });
+
+      document.querySelector('#zoom-in').addEventListener('click', () => {
+        diagram.zoomIn();
+      });
+      document.querySelector('#zoom-out').addEventListener('click', () => {
+        diagram.zoomOut();
+      });
+      document.querySelector('#fit').addEventListener('click', () => {
+        diagram.fit();
+      });
+    </script>
+  </body>
+</html>

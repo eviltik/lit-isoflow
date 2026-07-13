@@ -1,0 +1,42 @@
+{
+  "name": "lit-isoflow",
+  "version": "0.1.0",
+  "description": "Isometric infrastructure diagrams as a Lit web component. A React-free port of Isoflow/FossFLOW.",
+  "type": "module",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "demo": "vite demo --open",
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "isometric",
+    "diagram",
+    "isoflow",
+    "fossflow",
+    "lit",
+    "web-component",
+    "network-diagram",
+    "infrastructure"
+  ],
+  "author": "eviltik",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eviltik/lit-isoflow.git"
+  },
+  "dependencies": {
+    "lit": "^3.3.3",
+    "pathfinding": "^0.4.18",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}
