@@ -29,6 +29,7 @@ export default [
         KeyboardEvent: 'readonly',
         Event: 'readonly',
         crypto: 'readonly',
+        globalThis: 'readonly',
         structuredClone: 'readonly',
         requestAnimationFrame: 'readonly',
         setTimeout: 'readonly',

@@ -29,6 +29,7 @@ const MESSAGES = {
     'zoom.out': 'Zoom out',
     'zoom.fit': 'Fit to view',
     'export.png': 'Export as PNG',
+    'export.svg': 'Export as SVG (vector)',
     'export.json': 'Export JSON',
 
     'gallery.search': 'Search an icon…',
@@ -97,6 +98,7 @@ const MESSAGES = {
     'zoom.out': 'Zoom arrière',
     'zoom.fit': 'Ajuster à la vue',
     'export.png': 'Exporter en PNG',
+    'export.svg': 'Exporter en SVG (vectoriel)',
     'export.json': 'Exporter le JSON',
 
     'gallery.search': 'Rechercher une icône…',

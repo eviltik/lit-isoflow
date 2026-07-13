@@ -47,6 +47,7 @@ import {
   outermostCornerPositions
 } from './utils/renderer.js';
 import { getColorVariant, toPx, generateId } from './utils/common.js';
+import { renderToSvg } from './render-svg.js';
 import { interactionModes } from './editor/modes.js';
 import * as mutations from './editor/mutations.js';
 import { gridTileDataUri } from './assets/grid-tile.js';
@@ -624,6 +625,24 @@ export class LitIsoflow extends LitElement {
   updateTextBox(id, updates) {
     if (!this._scene) return;
     this._sceneFacade().updateTextBox(id, updates);
+  }
+
+  /**
+   * Renders the current view to an SVG string. Thin wrapper around
+   * renderToSvg() — which is pure JS and also usable without a DOM, e.g. in a
+   * CLI or a PDF pipeline.
+   *
+   * @param {{ showGrid?: boolean, background?: string, margin?: number }} [options]
+   * @returns {{ svg: string, width: number, height: number }}
+   */
+  exportSvg(options = {}) {
+    if (!this._workingModel) throw new Error('No model loaded.');
+
+    return renderToSvg(this._workingModel, {
+      viewId: this.viewId || undefined,
+      background: this.backgroundColor || 'transparent',
+      ...options
+    });
   }
 
   /**

@@ -119,6 +119,10 @@ npm install github:eviltik/lit-isoflow
 - `getSelectedItem()` / `updateItem()` / `updateViewItem()` / `updateConnector()`
   / `updateRectangle()` / `updateTextBox()` — property-panel API, see
   “Wiring a property panel” below
+- `exportSvg(options?)` — renders the view to **vector SVG**. Returns
+  `{ svg, width, height }`. Options: `showGrid` (default false), `background`
+  (default `'transparent'`), `margin` (default 0.5 tiles). A thin wrapper around
+  `renderToSvg()` — see “Rendering without a browser”.
 - `exportPng(options?)` — renders the view to a PNG with no extra dependency
   (off-screen clone → SVG `foreignObject` → canvas), cropped tightly to the
   rendered content (icons, labels, connectors — not the tile bounding box).
@@ -240,6 +244,34 @@ Icon artwork belongs to its respective owners (AWS, Microsoft, Google, CNCF,
 Isoflow); check the isopacks repository for per-collection licences. That is
 why `@isoflow/isopacks` is a dev-dependency of the demo, not a dependency of
 this package.
+
+### Rendering without a browser
+
+The SVG renderer is **pure JavaScript with no DOM**, so a diagram can be turned
+into vector output anywhere JavaScript runs — a CLI, a build step, a server, a
+PDF pipeline:
+
+```js
+import { renderToSvg } from 'lit-isoflow/render'; // no lit, no DOM
+
+const { svg, width, height } = renderToSvg(model, {
+  background: '#ffffff', // or 'transparent' (default)
+  showGrid: false,
+  margin: 0.5 // tiles of padding around the content
+});
+```
+
+This entry point pulls in neither Lit nor the component, so it stays light in a
+Node process. It shares the geometry engine with `<lit-isoflow>` — the component's
+`exportSvg()` is exactly this function — so what you get is what the editor shows.
+
+Notes:
+
+- Node descriptions (HTML) are flattened to plain text, since SVG has no rich text.
+- Text width is measured with a canvas in the browser, and estimated from font
+  metrics in Node, so text-box layouts can differ by a pixel or two.
+- Icon aspect ratios are read from their data-URI `viewBox`. For raster icons,
+  pass `iconSizes: { [iconId]: { width, height } }`.
 
 ### Internationalisation
 

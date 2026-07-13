@@ -1,4 +1,5 @@
 export { LitIsoflow } from './lit-isoflow.js';
+export { renderToSvg } from './render-svg.js';
 export { modelSchema } from './schemas.js';
 export { deriveScene } from './scene.js';
 export {

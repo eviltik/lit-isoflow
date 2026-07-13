@@ -380,27 +380,41 @@ export const connectorPathTileToGlobal = (tile, origin) => {
 };
 
 /**
- * Measures rendered text via a canvas, in tile units.
- * Matches Isoflow's getTextWidth so textbox layouts stay identical.
+ * Average glyph width as a fraction of the font size, for bold Roboto/Arial.
+ * Used to estimate text width when no canvas is available (Node, SSR).
+ */
+const AVERAGE_GLYPH_RATIO = 0.55;
+
+/**
+ * Measures rendered text, in tile units. Matches Isoflow's getTextWidth so
+ * textbox layouts stay identical in the browser; falls back to a metric
+ * estimate outside a DOM (Node, SSR), where the pure SVG renderer runs.
  */
 export const getTextWidth = (text, fontProps) => {
   if (!text) return 0;
 
   const paddingX = TEXTBOX_PADDING * UNPROJECTED_TILE_SIZE;
-  const fontSizePx = toPx(fontProps.fontSize * UNPROJECTED_TILE_SIZE);
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
+  const fontSizePx = fontProps.fontSize * UNPROJECTED_TILE_SIZE;
+  const measured = measureTextPx(text, fontProps, fontSizePx);
 
-  if (!context) {
-    throw new Error('Could not get canvas context');
+  return (measured + paddingX * 2) / UNPROJECTED_TILE_SIZE - 0.8;
+};
+
+const measureTextPx = (text, fontProps, fontSizePx) => {
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    if (context) {
+      context.font = `${fontProps.fontWeight} ${toPx(fontSizePx)} ${fontProps.fontFamily}`;
+      const { width } = context.measureText(text);
+
+      canvas.remove();
+      return width;
+    }
   }
 
-  context.font = `${fontProps.fontWeight} ${fontSizePx} ${fontProps.fontFamily}`;
-  const metrics = context.measureText(text);
-
-  canvas.remove();
-
-  return (metrics.width + paddingX * 2) / UNPROJECTED_TILE_SIZE - 0.8;
+  return text.length * fontSizePx * AVERAGE_GLYPH_RATIO;
 };
 
 /** @returns {Size} size in tile units */
