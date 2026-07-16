@@ -213,3 +213,22 @@ test('renderToSvg: light is the default (an export is not a screen)', () => {
     renderToSvg(makeModel(), { theme: 'light' }).svg
   );
 });
+
+test('renderToSvg: labels paint above every icon', () => {
+  // The repro from #2: a labelled connector between two nodes brought close
+  // together — the label must never end up under an icon.
+  const model = makeModel();
+  model.views[0].items = [
+    { id: 'a', tile: { x: 0, y: 0 }, labelHeight: 80 },
+    { id: 'b', tile: { x: 1, y: 0 }, labelHeight: 80 }
+  ];
+
+  const { svg } = renderToSvg(model);
+
+  // SVG paints in document order: every icon (<use>) must come before the
+  // first label box, node and connector labels alike.
+  const lastIcon = svg.lastIndexOf('<use ');
+  assert.ok(lastIcon >= 0);
+  assert.ok(svg.indexOf('>HTTPS<') > lastIcon, 'connector label above icons');
+  assert.ok(svg.indexOf('>Client<') > lastIcon, 'node label above icons');
+});

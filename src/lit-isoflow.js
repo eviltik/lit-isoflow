@@ -7,8 +7,10 @@
  * draw connectors/rectangles, place icons, text boxes, transform anchors).
  *
  * Model format is interchangeable with Isoflow/FossFLOW JSON exports.
- * Layer order mirrors Isoflow's Renderer: rectangles < grid < cursor
- * < connectors < textBoxes < connectorLabels < nodes < transform controls.
+ * Layer order: rectangles < grid < cursor < connectors < textBoxes < nodes
+ * < connectorLabels < nodeLabels < transform controls. This deviates from
+ * Isoflow, which paints labels under the nodes layer (#2): a label must never
+ * be hidden by an icon in front of it.
  */
 import { LitElement, html, svg, css, nothing } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
@@ -1500,11 +1502,6 @@ export class LitIsoflow extends LitElement {
           })}
         </div>
         <div class="scene-layer" style=${styleMap(layerStyles)}>
-          ${this._scene.connectors.map((connector) => {
-            return this._renderConnectorLabel(connector);
-          })}
-        </div>
-        <div class="scene-layer" style=${styleMap(layerStyles)}>
           ${repeat(
             visibleItems,
             (item) => item.id,
@@ -1528,6 +1525,27 @@ export class LitIsoflow extends LitElement {
 
               return guard([item, modelItem, icon, this._theme], () =>
                 this._renderNode(item)
+              );
+            }
+          )}
+        </div>
+        <!-- Labels paint above every icon (#2): being readable is the one
+             thing a label is for, and the isometric painter's order was
+             letting a foreground node cover the label of one behind. -->
+        <div class="scene-layer" style=${styleMap(layerStyles)}>
+          ${this._scene.connectors.map((connector) => {
+            return this._renderConnectorLabel(connector);
+          })}
+        </div>
+        <div class="scene-layer" style=${styleMap(layerStyles)}>
+          ${repeat(
+            visibleItems,
+            (item) => `label:${item.id}`,
+            (item) => {
+              const modelItem = resolveModelItem(this._workingModel, item.id);
+
+              return guard([item, modelItem, this._theme], () =>
+                this._renderNodeLabel(item)
               );
             }
           )}
@@ -1737,20 +1755,44 @@ export class LitIsoflow extends LitElement {
   }
 
   _renderNode(item) {
-    const theme = this._theme;
     const modelItem = resolveModelItem(this._workingModel, item.id);
     if (!modelItem) return nothing;
 
     const icon = resolveIcon(this._workingModel, modelItem.icon);
     const position = getTilePosition({ tile: item.tile, origin: 'BOTTOM' });
-    const labelHeight = item.labelHeight ?? DEFAULT_LABEL_HEIGHT;
-    const labelAnchorY = PROJECTED_TILE_SIZE.height / 2;
+
+    return html`
+      <div class="node" style=${styleMap({ zIndex: String(-item.tile.x - item.tile.y) })}>
+        <div
+          class="node-anchor"
+          style=${styleMap({ left: toPx(position.x), top: toPx(position.y) })}
+        >
+          ${icon ? this._renderIcon(icon) : nothing}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * A node's label and its leader line, rendered in a layer of their own above
+   * every icon (#2): a label must never be hidden by a node in front — being
+   * readable is the one thing it is for. Within the layer, labels keep the
+   * painter's z-order so they stack among themselves like their nodes do.
+   */
+  _renderNodeLabel(item) {
+    const theme = this._theme;
+    const modelItem = resolveModelItem(this._workingModel, item.id);
+    if (!modelItem) return nothing;
 
     const description =
       modelItem.description && modelItem.description !== MARKDOWN_EMPTY_VALUE
         ? modelItem.description
         : null;
-    const hasLabel = Boolean(modelItem.name || description);
+    if (!modelItem.name && !description) return nothing;
+
+    const position = getTilePosition({ tile: item.tile, origin: 'BOTTOM' });
+    const labelHeight = item.labelHeight ?? DEFAULT_LABEL_HEIGHT;
+    const labelAnchorY = PROJECTED_TILE_SIZE.height / 2;
 
     return html`
       <div class="node" style=${styleMap({ zIndex: String(-item.tile.x - item.tile.y) })}>
@@ -1759,7 +1801,7 @@ export class LitIsoflow extends LitElement {
           style=${styleMap({ left: toPx(position.x), top: toPx(position.y) })}
         >
           ${
-            hasLabel && labelHeight > 0
+            labelHeight > 0
               ? svg`
               <svg
                 class="label-line"
@@ -1778,31 +1820,20 @@ export class LitIsoflow extends LitElement {
             `
               : nothing
           }
-          ${
-            hasLabel
-              ? html`
-                  <div
-                    class="label-box"
-                    style=${styleMap({
-                      bottom: toPx(labelAnchorY + labelHeight),
-                      transform: 'translateX(-50%)'
-                    })}
-                  >
-                    ${
-                      modelItem.name
-                        ? html`<div class="name">${modelItem.name}</div>`
-                        : nothing
-                    }
-                    ${
-                      description
-                        ? html`<div class="description">${unsafeHTML(description)}</div>`
-                        : nothing
-                    }
-                  </div>
-                `
-              : nothing
-          }
-          ${icon ? this._renderIcon(icon) : nothing}
+          <div
+            class="label-box"
+            style=${styleMap({
+              bottom: toPx(labelAnchorY + labelHeight),
+              transform: 'translateX(-50%)'
+            })}
+          >
+            ${modelItem.name ? html`<div class="name">${modelItem.name}</div>` : nothing}
+            ${
+              description
+                ? html`<div class="description">${unsafeHTML(description)}</div>`
+                : nothing
+            }
+          </div>
         </div>
       </div>
     `;

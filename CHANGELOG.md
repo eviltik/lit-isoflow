@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Labels can no longer hide behind icons** (#2). Two causes, one per label
+  kind: connector labels were painted before the nodes layer, and node labels
+  lived inside the node layer where the isometric painter's order let a
+  foreground icon cover the label of a node behind. All labels — node and
+  connector — now paint in their own layer above every icon, in both the
+  component and the headless SVG renderer, so an exported PDF matches the
+  editor. Side effect, assumed: a leader line's dotted foot now paints over
+  its icon instead of being covered by it.
+
 ### Changed
 
 - **The selection band is a screen-aligned rectangle** (#7), not the isometric

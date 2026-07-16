@@ -320,9 +320,10 @@ const iconSymbol = (icon) => {
   return { viewBox, body, size };
 };
 
-const renderNodes = (scene, model, icons, symbols, theme) => {
+const renderNodes = (scene, model, icons, symbols) => {
   // Painter's algorithm: the component leans on z-index, SVG on document order,
-  // so draw back-to-front (highest x+y first).
+  // so draw back-to-front (highest x+y first). Icons only — labels live in
+  // their own pass above every icon (#2), like the component's label layer.
   const sorted = [...scene.items].sort((a, b) => {
     return b.tile.x + b.tile.y - (a.tile.x + a.tile.y);
   });
@@ -333,57 +334,73 @@ const renderNodes = (scene, model, icons, symbols, theme) => {
       if (!modelItem) return '';
 
       const icon = resolveIcon(model, modelItem.icon);
+      if (!icon || !icons[icon.id]) return '';
+
+      const position = getTilePosition({ tile: item.tile, origin: 'BOTTOM' });
+      const iconWidth =
+        PROJECTED_TILE_SIZE.width * (icon.isIsometric === false ? 0.7 : 0.8);
+      const { width, height } = icons[icon.id];
+      const iconHeight = (height / width) * iconWidth;
+
+      // Inlined artwork (<use> of a <symbol>) when we could decode it,
+      // <image href="data:…"> otherwise — the latter is not understood by
+      // every SVG consumer, hence the preference for symbols.
+      const artwork = (x, y) => {
+        return symbols[icon.id]
+          ? `<use href="#iso-icon-${escapeXml(icon.id)}" x="${x}" y="${y}" ` +
+              `width="${iconWidth}" height="${iconHeight}"/>`
+          : `<image href="${escapeXml(icon.url)}" x="${x}" y="${y}" ` +
+              `width="${iconWidth}" height="${iconHeight}"/>`;
+      };
+
+      if (icon.isIsometric === false) {
+        // Flat artwork: projected onto the ground plane.
+        const { transform } = projectFlatIcon(position);
+        return `<g transform="${transform}">${artwork(0, 0)}</g>`;
+      }
+
+      return artwork(position.x - iconWidth / 2, position.y - iconHeight);
+    })
+    .join('');
+};
+
+/**
+ * Node labels and their leader lines, painted above every icon (#2): a label
+ * must never be hidden by a node in front — being readable is the one thing
+ * it is for. Back-to-front order is kept so labels stack among themselves
+ * like their nodes do. The leader line travels with its label, so its dotted
+ * foot now paints over the icon instead of being covered by it — the same
+ * trade the component makes.
+ */
+const renderNodeLabels = (scene, model, theme) => {
+  const sorted = [...scene.items].sort((a, b) => {
+    return b.tile.x + b.tile.y - (a.tile.x + a.tile.y);
+  });
+
+  return sorted
+    .map((item) => {
+      const modelItem = resolveModelItem(model, item.id);
+      if (!modelItem) return '';
+
+      const lines = nodeLabelLines(modelItem);
+      if (lines.length === 0) return '';
+
       const position = getTilePosition({ tile: item.tile, origin: 'BOTTOM' });
       const labelHeight = item.labelHeight ?? DEFAULT_LABEL_HEIGHT;
       const labelAnchorY = PROJECTED_TILE_SIZE.height / 2;
-
-      const lines = nodeLabelLines(modelItem);
+      const labelY = position.y - labelAnchorY;
 
       let parts = '';
 
-      // The leader line is drawn first: the icon must cover its lower end,
-      // as it does in the component (where the icon layer sits on top).
-      if (lines.length > 0 && labelHeight > 0) {
-        const labelY = position.y - labelAnchorY;
-
+      if (labelHeight > 0) {
         parts +=
           `<line x1="${position.x}" y1="${labelY}" x2="${position.x}" y2="${labelY - labelHeight}" ` +
           `stroke="${theme.leaderLine}" stroke-width="3" stroke-linecap="round" stroke-dasharray="0, 6"/>`;
       }
 
-      if (icon && icons[icon.id]) {
-        const iconWidth =
-          PROJECTED_TILE_SIZE.width * (icon.isIsometric === false ? 0.7 : 0.8);
-        const { width, height } = icons[icon.id];
-        const iconHeight = (height / width) * iconWidth;
-
-        // Inlined artwork (<use> of a <symbol>) when we could decode it,
-        // <image href="data:…"> otherwise — the latter is not understood by
-        // every SVG consumer, hence the preference for symbols.
-        const artwork = (x, y) => {
-          return symbols[icon.id]
-            ? `<use href="#iso-icon-${escapeXml(icon.id)}" x="${x}" y="${y}" ` +
-                `width="${iconWidth}" height="${iconHeight}"/>`
-            : `<image href="${escapeXml(icon.url)}" x="${x}" y="${y}" ` +
-                `width="${iconWidth}" height="${iconHeight}"/>`;
-        };
-
-        if (icon.isIsometric === false) {
-          // Flat artwork: projected onto the ground plane.
-          const { transform } = projectFlatIcon(position);
-          parts += `<g transform="${transform}">${artwork(0, 0)}</g>`;
-        } else {
-          parts += artwork(position.x - iconWidth / 2, position.y - iconHeight);
-        }
-      }
-
-      if (lines.length > 0) {
-        const labelY = position.y - labelAnchorY;
-
-        parts += labelBox(lines, position.x, labelY - labelHeight, 'bottom', theme, {
-          bold: true
-        });
-      }
+      parts += labelBox(lines, position.x, labelY - labelHeight, 'bottom', theme, {
+        bold: true
+      });
 
       return parts;
     })
@@ -698,8 +715,9 @@ export const renderToSvg = (model, options = {}) => {
     gridRect +
     renderConnectors(scene, theme) +
     renderTextBoxes(scene, theme) +
+    renderNodes(scene, parsed, icons, symbols) +
     renderConnectorLabels(scene, theme) +
-    renderNodes(scene, parsed, icons, symbols, theme) +
+    renderNodeLabels(scene, parsed, theme) +
     `</g>` +
     `</svg>`;
 
