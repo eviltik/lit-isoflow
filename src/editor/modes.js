@@ -7,7 +7,8 @@
  * - scene: derived scene (items/connectors with paths/rectangles/textBoxes/
  *   colors/currentView/strings) + mutation methods provided by <lit-isoflow>.
  *
- * The Lasso mode is not ported: it is entirely commented out upstream.
+ * The Lasso mode is not Isoflow's: upstream's is entirely commented out, so
+ * the rubber-band selection below is lit-isoflow's own.
  */
 import { generateId, getItemByIdOrThrow } from '../utils/common.js';
 import { CoordsUtils } from '../utils/coords.js';
@@ -19,9 +20,90 @@ import {
   getAnchorParent,
   connectorPathTileToGlobal,
   getBoundingBox,
-  convertBoundsToNamedAnchors
+  convertBoundsToNamedAnchors,
+  isWithinBounds
 } from '../utils/renderer.js';
 import { VIEW_ITEM_DEFAULTS } from '../config.js';
+
+// --- LASSO (rubber-band selection) ---
+
+/**
+ * Everything the rubber band covers, as {type, id} entries.
+ *
+ * What counts as covered:
+ * - a node or a text box, when its anchor tile is inside;
+ * - a zone (rectangle), when it is FULLY contained — a zone half-crossed by
+ *   the band is more often brushed against than aimed at.
+ *
+ * Connectors are deliberately absent: the ones anchored to captured nodes
+ * follow them by construction (their path is re-derived from the anchors), and
+ * a tile-anchored connector cannot be group-moved through dragItems, whose
+ * anchor branch re-resolves against the mouse tile — single-anchor logic.
+ *
+ * @returns {Array<{ type: 'ITEM'|'RECTANGLE'|'TEXTBOX', id: string }>}
+ */
+export const getItemsInBounds = (from, to, scene) => {
+  const bounds = [from, to];
+  const found = [];
+
+  scene.items.forEach((item) => {
+    if (isWithinBounds(item.tile, bounds)) found.push({ type: 'ITEM', id: item.id });
+  });
+
+  scene.rectangles.forEach((rectangle) => {
+    if (isWithinBounds(rectangle.from, bounds) && isWithinBounds(rectangle.to, bounds)) {
+      found.push({ type: 'RECTANGLE', id: rectangle.id });
+    }
+  });
+
+  scene.textBoxes.forEach((textBox) => {
+    if (isWithinBounds(textBox.tile, bounds)) {
+      found.push({ type: 'TEXTBOX', id: textBox.id });
+    }
+  });
+
+  return found;
+};
+
+const isSelectionMember = (selection, item) => {
+  if (!selection || !item) return false;
+
+  return selection.some((member) => {
+    return member.type === item.type && member.id === item.id;
+  });
+};
+
+export const Lasso = {
+  entry: ({ uiState }) => {
+    // A new rubber band is a new selection: whatever was selected is gone.
+    uiState.actions.setItemControls(null);
+    uiState.actions.setSelection(null);
+    uiState.actions.setCursor('crosshair');
+  },
+  exit: ({ uiState }) => {
+    uiState.actions.setCursor('default');
+  },
+  mousemove: ({ uiState }) => {
+    if (uiState.mode.type !== 'LASSO' || !uiState.mouse.mousedown) return;
+
+    uiState.actions.setMode({
+      ...uiState.mode,
+      to: uiState.mouse.position.tile
+    });
+  },
+  mouseup: ({ uiState, scene }) => {
+    if (uiState.mode.type !== 'LASSO') return;
+
+    const items = getItemsInBounds(uiState.mode.from, uiState.mode.to, scene);
+
+    uiState.actions.setSelection(items.length > 0 ? items : null);
+    uiState.actions.setMode({
+      type: 'CURSOR',
+      showCursor: true,
+      mousedownItem: null
+    });
+  }
+};
 
 // --- CURSOR ---
 
@@ -101,6 +183,13 @@ const cursorMousedown = ({ uiState, scene, isRendererInteraction }) => {
   }
 
   uiState.actions.setMode({ ...uiState.mode, mousedownItem: itemAtTile });
+
+  // Pressing on a member of a rubber-band selection must not dissolve the
+  // group into single-item controls: the press may be the start of a group
+  // drag. A plain click (no drag) collapses it in mouseup instead.
+  if (isSelectionMember(uiState.selection, itemAtTile)) return;
+
+  uiState.actions.setSelection(null);
   uiState.actions.setItemControls(
     itemAtTile?.type === 'CONNECTOR_ANCHOR'
       ? { type: 'CONNECTOR', id: itemAtTile.parentId }
@@ -123,6 +212,30 @@ export const Cursor = {
 
     let item = uiState.mode.mousedownItem;
 
+    // Dragging any member of a rubber-band selection moves the whole set:
+    // DRAG_ITEMS has always taken an array, it just never received more than
+    // one element before.
+    if (isSelectionMember(uiState.selection, item)) {
+      uiState.actions.setMode({
+        type: 'DRAG_ITEMS',
+        showCursor: true,
+        items: uiState.selection,
+        isInitialMovement: true
+      });
+      return;
+    }
+
+    // Pressed on empty canvas and moved: start a rubber band.
+    if (!item && uiState.mouse.mousedown) {
+      uiState.actions.setMode({
+        type: 'LASSO',
+        showCursor: false,
+        from: uiState.mouse.mousedown.tile,
+        to: uiState.mouse.position.tile
+      });
+      return;
+    }
+
     if (item?.type === 'CONNECTOR' && uiState.mouse.mousedown) {
       const anchor = getAnchor(item.id, uiState.mouse.mousedown.tile, scene);
 
@@ -143,6 +256,11 @@ export const Cursor = {
     if (uiState.mode.type !== 'CURSOR' || !isRendererInteraction) return;
 
     const item = uiState.mode.mousedownItem;
+
+    // Reaching mouseup still in CURSOR means no drag happened (a drag would
+    // have switched the mode). A plain click on a selection member collapses
+    // the group to that single element; a click anywhere else clears it.
+    uiState.actions.setSelection(null);
 
     if (item?.type === 'CONNECTOR_ANCHOR') {
       uiState.actions.setItemControls({ type: 'CONNECTOR', id: item.parentId });
@@ -556,6 +674,7 @@ export const TextBox = {
 
 export const interactionModes = {
   CURSOR: Cursor,
+  LASSO: Lasso,
   DRAG_ITEMS: DragItems,
   'RECTANGLE.DRAW': DrawRectangle,
   'RECTANGLE.TRANSFORM': TransformRectangle,

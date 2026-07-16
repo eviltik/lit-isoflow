@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>lit-isoflow — stress test</title>
+    <style>
+      :root {
+        --accent: #0392ff;
+        --text: #1c2430;
+        --text-muted: #67748a;
+        --card-bg: #ffffff;
+        --card-border: rgba(16, 34, 64, 0.08);
+        --card-shadow:
+          0 2px 6px rgba(16, 34, 64, 0.06), 0 12px 32px rgba(16, 34, 64, 0.1);
+        --hover: #f0f4f9;
+        --good: #1a7f4b;
+        --warn: #b26a00;
+        --bad: #b3261e;
+        --radius: 12px;
+      }
+
+      :root[data-theme='dark'] {
+        --accent: #4493f8;
+        --text: #e6edf3;
+        --text-muted: #9198a1;
+        --card-bg: #2d333b;
+        --card-border: rgba(255, 255, 255, 0.1);
+        --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.4);
+        --hover: #3a424c;
+        --good: #3fb950;
+        --warn: #d29922;
+        --bad: #ff7b72;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        height: 100vh;
+        overflow: hidden;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      lit-isoflow {
+        position: absolute;
+        inset: 0;
+      }
+
+      .card {
+        position: absolute;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: var(--radius);
+        box-shadow: var(--card-shadow);
+        z-index: 10;
+      }
+
+      .brand {
+        top: 16px;
+        left: 16px;
+        padding: 8px 14px;
+        font-weight: 700;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .brand:hover {
+        border-color: var(--accent);
+      }
+
+      .brand .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: linear-gradient(135deg, var(--accent), #7cc3ff);
+        transform: rotate(45deg);
+      }
+
+      .brand .version {
+        color: var(--text-muted);
+        font-weight: 400;
+      }
+
+      /* ---------- control panel ---------- */
+
+      .panel {
+        top: 16px;
+        right: 16px;
+        width: 300px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-height: calc(100vh - 32px);
+        overflow-y: auto;
+      }
+
+      .panel h2 {
+        margin: 0;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--text-muted);
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .field label {
+        font-size: 11.5px;
+        color: var(--text-muted);
+      }
+
+      .presets {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 5px;
+      }
+
+      .presets button,
+      .run {
+        font: inherit;
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text);
+        padding: 7px 4px;
+        cursor: pointer;
+      }
+
+      .presets button:hover,
+      .run:hover {
+        background: var(--hover);
+      }
+
+      .presets button.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      .run {
+        padding: 9px;
+        font-weight: 600;
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .run:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+
+      .field input[type='number'],
+      .field select {
+        font: inherit;
+        border: 1px solid var(--card-border);
+        border-radius: 8px;
+        padding: 6px 8px;
+        background: var(--card-bg);
+        color: var(--text);
+        outline: none;
+      }
+
+      .toggles {
+        display: flex;
+        gap: 14px;
+        font-size: 11.5px;
+        color: var(--text-muted);
+      }
+
+      .toggles label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+      }
+
+      /* ---------- results ---------- */
+
+      .results {
+        border-top: 1px solid var(--card-border);
+        padding-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .metric {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+      }
+
+      .metric .name {
+        color: var(--text-muted);
+        font-size: 11.5px;
+      }
+
+      .metric .value {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+
+      .value.good {
+        color: var(--good);
+      }
+      .value.warn {
+        color: var(--warn);
+      }
+      .value.bad {
+        color: var(--bad);
+      }
+
+      .verdict {
+        font-size: 11.5px;
+        line-height: 1.45;
+        color: var(--text-muted);
+        border-top: 1px solid var(--card-border);
+        padding-top: 10px;
+      }
+
+      .note {
+        font-size: 11px;
+        line-height: 1.45;
+        color: var(--text-muted);
+      }
+
+      /* ---------- busy overlay ---------- */
+
+      .busy {
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(2px);
+        font-weight: 600;
+      }
+
+      :root[data-theme='dark'] .busy {
+        background: rgba(28, 33, 40, 0.7);
+      }
+
+      .busy.on {
+        display: flex;
+      }
+    </style>
+    <script type="module" crossorigin src="../assets/stress-CQn12kVW.js"></script>
+    <link rel="modulepreload" crossorigin href="../assets/model-CxA0sXBG.js">
+  </head>
+
+  <body>
+    <lit-isoflow editor-mode="EDITABLE"></lit-isoflow>
+
+    <a class="card brand" href="../" title="All demos">
+      <span class="dot"></span> lit-isoflow <span class="version">stress</span>
+    </a>
+
+    <div class="card panel">
+      <h2>Stress test</h2>
+
+      <p class="note">
+        How many nodes can the component hold before it stops being usable? Pick a size,
+        run it, and read the numbers — including the bad ones.
+      </p>
+
+      <div class="field">
+        <label for="count">Nodes</label>
+        <div class="presets" id="presets">
+          <button data-count="100">100</button>
+          <button data-count="1000">1 000</button>
+          <button data-count="5000">5 000</button>
+          <button data-count="10000">10 000</button>
+        </div>
+        <input id="count" type="number" min="1" max="50000" step="100" value="1000" />
+      </div>
+
+      <div class="field">
+        <label for="connectors">Connectors (routed with A*)</label>
+        <select id="connectors">
+          <option value="0" selected>None</option>
+          <option value="0.25">One per 4 nodes</option>
+          <option value="0.5">One per 2 nodes</option>
+          <option value="1">One per node</option>
+        </select>
+      </div>
+
+      <div class="toggles">
+        <label><input id="labels" type="checkbox" /> Labels</label>
+        <label><input id="grid" type="checkbox" /> Grid</label>
+      </div>
+
+      <button class="run" id="run">Run</button>
+
+      <div class="field">
+        <label for="churn">Live mutations — icons swapped per frame</label>
+        <input id="churn" type="number" min="1" max="1000" step="10" value="50" />
+        <button class="run" id="randomize" disabled>Randomize loop</button>
+      </div>
+
+      <div class="field">
+        <label for="random-areas">Zones — between 2 and 10, none overlapping</label>
+        <button class="run" id="random-areas" disabled>Random areas</button>
+        <span class="note" id="areas-log"></span>
+      </div>
+
+      <div class="results" id="results" hidden>
+        <div class="metric">
+          <span class="name">Model built</span>
+          <span class="value" id="m-build">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">First render</span>
+          <span class="value" id="m-render">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">DOM nodes</span>
+          <span class="value" id="m-dom">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">DOM nodes per diagram node</span>
+          <span class="value" id="m-ratio">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">Frame rate (panning)</span>
+          <span class="value" id="m-fps">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">Frame rate (mutating)</span>
+          <span class="value" id="m-churn-fps">—</span>
+        </div>
+        <div class="metric">
+          <span class="name">Icon swaps / second</span>
+          <span class="value" id="m-churn-rate">—</span>
+        </div>
+        <div class="verdict" id="verdict"></div>
+      </div>
+    </div>
+
+    <div class="busy" id="busy">Rendering…</div>
+
+  </body>
+</html>

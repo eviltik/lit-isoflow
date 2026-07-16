@@ -50,7 +50,8 @@ The `editor-mode` attribute selects what `<lit-isoflow>` is:
 <lit-isoflow editor-mode="EDITABLE" fit-to-view></lit-isoflow>
 ```
 
-Editing capabilities (`EDITABLE`): select & drag items, draw connectors
+Editing capabilities (`EDITABLE`): select & drag items, rubber-band selection
+(drag on empty canvas to select a group, then move it as one), draw connectors
 (anchored to items or tiles), re-anchor or bend connectors by dragging their
 anchors/path, draw & resize rectangles, place icons, add text boxes, delete
 selection, gesture-level undo/redo, transient pan (hold Shift/Space).
@@ -132,6 +133,9 @@ diagrams into PDFs and Word files — is covered in the
 - `getSelectedItem()` / `updateItem()` / `updateViewItem()` / `updateConnector()`
   / `updateRectangle()` / `updateTextBox()` — property-panel API, see
   “Wiring a property panel” below
+- `getSelectedItems()` — the rubber-band selection, as `[{ type, id }]` (or
+  `null`). Exclusive with `getSelectedItem()`: a group has no property panel,
+  a plain click on a member collapses the group to that single element
 - `createRectangle({ from, to, color?, id? })` / `deleteRectangle(id)` — place a
   zone programmatically (importing, templating, generating), rather than only by
   drawing it with the mouse. Returns the new id.
@@ -166,6 +170,7 @@ Shortcuts are ignored while typing in an input, including inside a shadow root.
 - `zoom-changed` — `detail.zoom`
 - `model-error` — `detail.error` (zod validation error)
 - `item-selected` — `detail.item` (`{ type, id }` or `null`)
+- `selection-changed` — `detail.items` (rubber-band selection, `[{ type, id }]` or `null`)
 - `model-updated` — `detail.model` (debounced snapshot after each edit)
 - `tool-changed` — `detail.tool`
 - `history-changed` — `detail.canUndo` / `detail.canRedo`
@@ -400,7 +405,9 @@ what gets published. See [CONTRIBUTING.md](CONTRIBUTING.md).
   (upstream hides them behind nodes and always drags the node).
 - Gesture-level undo/redo — absent upstream.
 - Invalid connectors are skipped rather than deleted from the model.
-- The Lasso mode is not ported: it is entirely commented out upstream.
+- The rubber-band selection is lit-isoflow's own, not a port: upstream's Lasso
+  mode is entirely commented out. It works in tile space — the projected
+  parallelogram you see is exactly what is captured.
 
 ## Credits
 

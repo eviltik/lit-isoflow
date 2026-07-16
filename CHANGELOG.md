@@ -5,6 +5,20 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Rubber-band selection** (#1). Dragging on empty canvas with the cursor tool
+  draws a selection band, in tile space — the projected parallelogram you see is
+  exactly what is captured. Nodes and text boxes are caught by their anchor
+  tile; a zone only when fully contained (half-crossed is brushed against, not
+  aimed at). Dragging any member then moves the whole set, as one undo gesture;
+  a plain click on a member collapses the group to that single element; Escape
+  clears; Delete removes every member. New API: `getSelectedItems()` and the
+  `selection-changed` event. Connectors anchored to captured nodes follow them
+  by construction.
+
 ## [1.0.0] — 2026-07-13
 
 First release on npm. The API is unchanged in shape since 0.1.0 — it has been
