@@ -138,5 +138,7 @@ true`), not on `window` — `isRendererInteraction` fails otherwise.
 - Build artifacts (`dist-demo/`, `dist-test/`) are gitignored; a `git add -A`
   once committed one — check `git status` before staging.
 - Releases: bump with `npm version`, date the CHANGELOG, tag `vX.Y.Z`,
-  `npm publish` (2FA — only the maintainer can). The package ships `src/`
-  only.
+  `npm publish` (2FA — only the maintainer can), **then
+  `gh release create vX.Y.Z --notes-file <changelog section> --latest`** — a
+  pushed tag does not create a GitHub release, and 1.0.0/1.1.0 shipped
+  without one until someone noticed. The package ships `src/` only.
