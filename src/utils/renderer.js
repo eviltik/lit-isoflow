@@ -319,45 +319,59 @@ export const getTextBoxEndTile = (textBox, size) => {
  * ({ type: 'ITEM'|'TEXTBOX'|'CONNECTOR'|'RECTANGLE', id }) or null.
  * `scene` is a derived scene (see scene.js).
  */
-export const getItemAtTile = ({ tile, scene }) => {
-  const viewItem = scene.items.find((item) => {
-    return CoordsUtils.isEqual(item.tile, tile);
+/**
+ * Everything sitting on a tile, top of the visual stack first: nodes, then
+ * text boxes, then connectors, then zones — the paint order, inverted. The
+ * whole stack is what lets a click cycle down to an element buried under
+ * another (#3); a fixed priority with an early return could never reach it.
+ *
+ * @returns {Array<{ type: string, id: string }>}
+ */
+export const getItemsAtTile = ({ tile, scene }) => {
+  const found = [];
+
+  scene.items.forEach((item) => {
+    if (CoordsUtils.isEqual(item.tile, tile)) found.push({ type: 'ITEM', id: item.id });
   });
 
-  if (viewItem) return { type: 'ITEM', id: viewItem.id };
-
-  const textBox = scene.textBoxes.find((tb) => {
-    const textBoxTo = getTextBoxEndTile(tb, tb.size);
+  scene.textBoxes.forEach((textBox) => {
+    const textBoxTo = getTextBoxEndTile(textBox, textBox.size);
     const textBoxBounds = getBoundingBox([
-      tb.tile,
+      textBox.tile,
       {
         x: Math.ceil(textBoxTo.x),
-        y: tb.orientation === 'X' ? Math.ceil(textBoxTo.y) : Math.floor(textBoxTo.y)
+        y: textBox.orientation === 'X' ? Math.ceil(textBoxTo.y) : Math.floor(textBoxTo.y)
       }
     ]);
 
-    return isWithinBounds(tile, textBoxBounds);
+    if (isWithinBounds(tile, textBoxBounds)) {
+      found.push({ type: 'TEXTBOX', id: textBox.id });
+    }
   });
 
-  if (textBox) return { type: 'TEXTBOX', id: textBox.id };
-
-  const connector = scene.connectors.find((con) => {
-    return con.path.tiles.find((pathTile) => {
-      const globalPathTile = connectorPathTileToGlobal(pathTile, con.path.rectangle.from);
+  scene.connectors.forEach((connector) => {
+    const onPath = connector.path.tiles.some((pathTile) => {
+      const globalPathTile = connectorPathTileToGlobal(
+        pathTile,
+        connector.path.rectangle.from
+      );
 
       return CoordsUtils.isEqual(globalPathTile, tile);
     });
+
+    if (onPath) found.push({ type: 'CONNECTOR', id: connector.id });
   });
 
-  if (connector) return { type: 'CONNECTOR', id: connector.id };
-
-  const rectangle = scene.rectangles.find(({ from, to }) => {
-    return isWithinBounds(tile, [from, to]);
+  scene.rectangles.forEach(({ id, from, to }) => {
+    if (isWithinBounds(tile, [from, to])) found.push({ type: 'RECTANGLE', id });
   });
 
-  if (rectangle) return { type: 'RECTANGLE', id: rectangle.id };
+  return found;
+};
 
-  return null;
+/** The topmost element on a tile — the old single-result hit-test. */
+export const getItemAtTile = ({ tile, scene }) => {
+  return getItemsAtTile({ tile, scene })[0] ?? null;
 };
 
 export const getAnchorAtTile = (tile, anchors) => {

@@ -27,7 +27,8 @@ import {
   getItemAtTile,
   getFitToViewParams,
   hasMovedTile,
-  tileToScreen
+  tileToScreen,
+  getItemsAtTile
 } from '../src/utils/renderer.js';
 import {
   PROJECTED_TILE_SIZE,
@@ -351,4 +352,29 @@ test('tileToScreen: exact inverse of screenToIso', () => {
       assert.equal(back.y + 0, tile.y, label);
     }
   }
+});
+
+test('getItemsAtTile: the whole stack, top of the visual pile first', () => {
+  const scene = {
+    items: [{ id: 'node', tile: { x: 2, y: 2 } }],
+    textBoxes: [],
+    connectors: [],
+    rectangles: [{ id: 'zone', from: { x: 0, y: 0 }, to: { x: 4, y: 4 } }]
+  };
+
+  // A node sitting on a zone: both are there, node first — and that is what
+  // the old single-result hit-test could never say (#3).
+  assert.deepEqual(getItemsAtTile({ tile: { x: 2, y: 2 }, scene }), [
+    { type: 'ITEM', id: 'node' },
+    { type: 'RECTANGLE', id: 'zone' }
+  ]);
+
+  // Beside the node: only the zone.
+  assert.deepEqual(getItemsAtTile({ tile: { x: 1, y: 1 }, scene }), [
+    { type: 'RECTANGLE', id: 'zone' }
+  ]);
+
+  // Off everything: empty stack, and the wrapper yields null.
+  assert.deepEqual(getItemsAtTile({ tile: { x: 9, y: 9 }, scene }), []);
+  assert.equal(getItemAtTile({ tile: { x: 9, y: 9 }, scene }), null);
 });

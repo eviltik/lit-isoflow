@@ -14,6 +14,7 @@ import { generateId, getItemByIdOrThrow } from '../utils/common.js';
 import { CoordsUtils } from '../utils/coords.js';
 import {
   getItemAtTile,
+  getItemsAtTile,
   hasMovedTile,
   getAnchorAtTile,
   getAnchorTile,
@@ -233,7 +234,16 @@ const cursorMousedown = ({ uiState, scene, isRendererInteraction }) => {
   if (uiState.mode.type !== 'CURSOR' || !isRendererInteraction) return;
 
   const tile = uiState.mouse.position.tile;
-  let itemAtTile = getItemAtTile({ tile, scene });
+  const stack = getItemsAtTile({ tile, scene });
+  let itemAtTile = stack[0] ?? null;
+
+  // If the current selection sits in this tile's stack, press IT rather than
+  // the topmost element: after clicking down to a zone buried under an icon
+  // (#3), dragging must move the zone, not re-grab the icon above it.
+  const held = uiState.itemControls;
+  if (held && stack.some((m) => m.type === held.type && m.id === held.id)) {
+    itemAtTile = { type: held.type, id: held.id };
+  }
 
   // The selected connector's anchors take priority over items at the same
   // tile, so endpoints can be grabbed and re-anchored (lit-isoflow addition:
@@ -260,7 +270,14 @@ const cursorMousedown = ({ uiState, scene, isRendererInteraction }) => {
     }
   }
 
-  uiState.actions.setMode({ ...uiState.mode, mousedownItem: itemAtTile });
+  // The selection as it was BEFORE this press: setItemControls below
+  // overwrites it, and the click-cycle in mouseup (#3) must compare against
+  // what the user saw when clicking, not what the press just selected.
+  uiState.actions.setMode({
+    ...uiState.mode,
+    mousedownItem: itemAtTile,
+    previousControls: uiState.itemControls
+  });
 
   // With Shift held the gesture builds the selection: nothing is decided at
   // mousedown — the toggle happens on mouseup, and a band started from empty
@@ -352,7 +369,7 @@ export const Cursor = {
     }
   },
   mousedown: cursorMousedown,
-  mouseup: ({ uiState, isRendererInteraction }) => {
+  mouseup: ({ uiState, scene, isRendererInteraction }) => {
     if (uiState.mode.type !== 'CURSOR' || !isRendererInteraction) return;
 
     const item = uiState.mode.mousedownItem;
@@ -378,10 +395,33 @@ export const Cursor = {
     // the group to that single element; a click anywhere else clears it.
     uiState.actions.setSelection(null);
 
-    if (item?.type === 'CONNECTOR_ANCHOR') {
-      uiState.actions.setItemControls({ type: 'CONNECTOR', id: item.parentId });
-    } else if (item) {
-      uiState.actions.setItemControls({ type: item.type, id: item.id });
+    if (item) {
+      // Clicking the element that was already selected cycles down the tile's
+      // stack (#3): first click takes the top, the next takes what is buried
+      // below, wrapping at the bottom. No state to reset — the "cycle" is
+      // just where the previous selection sits in this tile's stack, so
+      // clicking another tile naturally starts from its top. An anchor press
+      // resolves to its parent connector first: dragging an anchor re-anchors
+      // it (that hit priority is untouched), but a plain click on it must
+      // keep the descent going instead of re-selecting the connector forever.
+      const previous = uiState.mode.previousControls ?? null;
+      let next =
+        item.type === 'CONNECTOR_ANCHOR'
+          ? { type: 'CONNECTOR', id: item.parentId }
+          : { type: item.type, id: item.id };
+
+      if (previous && previous.type === next.type && previous.id === next.id) {
+        const stack = getItemsAtTile({ tile: uiState.mouse.position.tile, scene });
+        const index = stack.findIndex((m) => {
+          return m.type === previous.type && m.id === previous.id;
+        });
+
+        if (index >= 0 && stack.length > 1) {
+          next = stack[(index + 1) % stack.length];
+        }
+      }
+
+      uiState.actions.setItemControls(next);
     } else {
       uiState.actions.setItemControls(null);
     }
