@@ -46,7 +46,13 @@ import {
   convertBoundsToNamedAnchors,
   outermostCornerPositions
 } from './utils/renderer.js';
-import { getColorVariant, toPx, generateId, clamp } from './utils/common.js';
+import {
+  getColorVariant,
+  toPx,
+  generateId,
+  clamp,
+  getItemByIdOrThrow
+} from './utils/common.js';
 import { renderToSvg, getContentBox } from './render-svg.js';
 import { interactionModes } from './editor/modes.js';
 import * as mutations from './editor/mutations.js';
@@ -117,6 +123,7 @@ export class LitIsoflow extends LitElement {
     _modelError: { state: true },
     _mode: { state: true },
     _itemControls: { state: true },
+    _selection: { state: true },
     _cursorCss: { state: true }
   };
 
@@ -301,6 +308,7 @@ export class LitIsoflow extends LitElement {
     this._modelError = null;
     this._mode = getStartingMode(this.editorMode);
     this._itemControls = null;
+    this._selection = null;
     this._cursorCss = 'default';
 
     this._scene = null;
@@ -396,6 +404,7 @@ export class LitIsoflow extends LitElement {
     if (changed.has('editorMode')) {
       this._mode = getStartingMode(this.editorMode);
       this._itemControls = null;
+      this._setSelection(null);
       this._cursorCss = 'default';
       this._prevModeType = null;
     }
@@ -489,6 +498,7 @@ export class LitIsoflow extends LitElement {
     this._workingModel = this._undoStack.pop();
     this._historyOpen = false;
     this._itemControls = null;
+    this._setSelection(null);
     this._afterHistoryChange();
   }
 
@@ -500,6 +510,7 @@ export class LitIsoflow extends LitElement {
     this._workingModel = this._redoStack.pop();
     this._historyOpen = false;
     this._itemControls = null;
+    this._setSelection(null);
     this._afterHistoryChange();
   }
 
@@ -879,24 +890,37 @@ export class LitIsoflow extends LitElement {
    * host can close its property panel without reaching into internals.
    */
   clearSelection() {
-    if (!this._itemControls) return;
+    if (!this._itemControls && !this._selection) return;
 
     this._setItemControls(null);
+    this._setSelection(null);
+  }
+
+  /**
+   * The rubber-band selection, as [{ type, id }] — or null when there is none.
+   * Single-click selection stays on getSelectedItem(): the two are exclusive.
+   */
+  getSelectedItems() {
+    return this._selection ? this._selection.map((member) => ({ ...member })) : null;
   }
 
   /** Deletes the currently selected item (also bound to the Delete key). */
   deleteSelection() {
-    if (!this._itemControls || !this._workingModel) return;
+    if (!this._workingModel) return;
 
-    const { type, id } = this._itemControls;
     const scene = this._sceneFacade();
+    const doomed = this._selection ?? (this._itemControls ? [this._itemControls] : []);
+    if (doomed.length === 0) return;
 
-    if (type === 'ITEM') scene.deleteViewItem(id);
-    else if (type === 'CONNECTOR') scene.deleteConnector(id);
-    else if (type === 'RECTANGLE') scene.deleteRectangle(id);
-    else if (type === 'TEXTBOX') scene.deleteTextBox(id);
+    doomed.forEach(({ type, id }) => {
+      if (type === 'ITEM') scene.deleteViewItem(id);
+      else if (type === 'CONNECTOR') scene.deleteConnector(id);
+      else if (type === 'RECTANGLE') scene.deleteRectangle(id);
+      else if (type === 'TEXTBOX') scene.deleteTextBox(id);
+    });
 
     this._setItemControls(null);
+    this._setSelection(null);
   }
 
   // --- model / scene management ---
@@ -906,6 +930,7 @@ export class LitIsoflow extends LitElement {
     this._scene = null;
     this._workingModel = null;
     this._itemControls = null;
+    this._setSelection(null);
     this._mode = getStartingMode(this.editorMode);
     this._prevModeType = null;
     this._undoStack = [];
@@ -1069,6 +1094,9 @@ export class LitIsoflow extends LitElement {
       get itemControls() {
         return self._itemControls;
       },
+      get selection() {
+        return self._selection;
+      },
       actions: {
         setMode: (mode) => {
           self._mode = mode;
@@ -1079,6 +1107,9 @@ export class LitIsoflow extends LitElement {
         },
         setItemControls: (itemControls) => {
           self._setItemControls(itemControls);
+        },
+        setSelection: (selection) => {
+          self._setSelection(selection);
         },
         setCursor: (cursor) => {
           self._cursorCss = cursor;
@@ -1197,13 +1228,16 @@ export class LitIsoflow extends LitElement {
       return;
     }
 
-    if (event.key === 'Escape' && this._itemControls) {
+    if (event.key === 'Escape' && (this._itemControls || this._selection)) {
       event.preventDefault();
       this.clearSelection();
       return;
     }
 
-    if ((event.key === 'Delete' || event.key === 'Backspace') && this._itemControls) {
+    if (
+      (event.key === 'Delete' || event.key === 'Backspace') &&
+      (this._itemControls || this._selection)
+    ) {
       event.preventDefault();
       this.deleteSelection();
     }
@@ -1238,6 +1272,20 @@ export class LitIsoflow extends LitElement {
     this._mode = mode;
     interactionModes[mode.type]?.entry?.(state);
     this._prevModeType = mode.type;
+  }
+
+  _setSelection(selection) {
+    const previous = this._selection;
+    if (previous === selection || (!previous && !selection)) return;
+
+    this._selection = selection;
+    this.dispatchEvent(
+      new CustomEvent('selection-changed', {
+        detail: { items: selection },
+        bubbles: true,
+        composed: true
+      })
+    );
   }
 
   _setItemControls(itemControls) {
@@ -1461,6 +1509,7 @@ export class LitIsoflow extends LitElement {
           )}
         </div>
         <div class="scene-layer controls" style=${styleMap(layerStyles)}>
+          ${this._renderLasso()} ${this._renderSelectionHighlights()}
           ${this._renderTransformControls()}
         </div>
       </div>
@@ -1766,6 +1815,71 @@ export class LitIsoflow extends LitElement {
   }
 
   // --- transform controls (selection visuals) ---
+
+  /** A translucent parallelogram, in tile space: the lasso and its result. */
+  _renderTileArea(from, to, accent, { dashed = false } = {}) {
+    const { styles, pxSize } = this._projectionStyles(from, to);
+
+    return html`
+      <div class="projected" style=${styleMap(styles)}>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 ${pxSize.width} ${pxSize.height}"
+          width="${pxSize.width}px"
+          height="${pxSize.height}px"
+        >
+          <rect
+            width=${pxSize.width}
+            height=${pxSize.height}
+            fill=${accent}
+            fill-opacity="0.12"
+            stroke=${accent}
+            stroke-width="2"
+            stroke-dasharray=${dashed ? '8, 6' : nothing}
+          ></rect>
+        </svg>
+      </div>
+    `;
+  }
+
+  _renderLasso() {
+    if (this._mode.type !== 'LASSO') return nothing;
+
+    return this._renderTileArea(
+      this._mode.from,
+      this._mode.to,
+      this._theme.controlsAccent,
+      {
+        dashed: true
+      }
+    );
+  }
+
+  _renderSelectionHighlights() {
+    if (!this._selection || this.editorMode !== 'EDITABLE') return nothing;
+
+    const accent = this._theme.controlsAccent;
+
+    return this._selection.map(({ type, id }) => {
+      try {
+        if (type === 'ITEM') {
+          const item = getItemByIdOrThrow(this._scene.items, id).value;
+          return this._renderTileArea(item.tile, item.tile, accent);
+        }
+        if (type === 'RECTANGLE') {
+          const rectangle = getItemByIdOrThrow(this._scene.rectangles, id).value;
+          return this._renderTileArea(rectangle.from, rectangle.to, accent);
+        }
+        if (type === 'TEXTBOX') {
+          const textBox = getItemByIdOrThrow(this._scene.textBoxes, id).value;
+          return this._renderTileArea(textBox.tile, textBox.tile, accent);
+        }
+      } catch {
+        // A member deleted from under the selection simply loses its highlight.
+      }
+      return nothing;
+    });
+  }
 
   _renderTransformControls() {
     const theme = this._theme;
