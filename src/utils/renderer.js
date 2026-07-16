@@ -77,6 +77,25 @@ export const getTilePosition = ({ tile, origin = 'CENTER' }) => {
   }
 };
 
+/**
+ * Where a tile lands on screen, in component-relative pixels — the inverse of
+ * `screenToIso`. Scene positions (getTilePosition) are zoom-1 pixels anchored
+ * at the viewport centre, then translated by the scroll and scaled by the
+ * zoom, exactly like the CSS transform on the scene layers.
+ *
+ * @param {{ tile: Coords, zoom: number, scroll: { position: Coords },
+ *   rendererSize: Size, origin?: TileOrigin }} args
+ * @returns {Coords} screen position, relative to the component's top-left
+ */
+export const tileToScreen = ({ tile, zoom, scroll, rendererSize, origin = 'CENTER' }) => {
+  const position = getTilePosition({ tile, origin });
+
+  return {
+    x: rendererSize.width * 0.5 + scroll.position.x + position.x * zoom,
+    y: rendererSize.height * 0.5 + scroll.position.y + position.y * zoom
+  };
+};
+
 export const sortByPosition = (tiles) => {
   const xSorted = [...tiles].sort((a, b) => {
     return a.x - b.x;

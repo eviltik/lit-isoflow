@@ -177,6 +177,13 @@ export class LitIsoflow extends LitElement {
       pointer-events: none;
     }
 
+    .lasso {
+      position: absolute;
+      pointer-events: none;
+      box-sizing: border-box;
+      border-radius: 2px;
+    }
+
     .transform-anchor {
       pointer-events: auto;
       cursor: pointer;
@@ -1100,6 +1107,16 @@ export class LitIsoflow extends LitElement {
       get shiftHeld() {
         return self._shiftHeld === true;
       },
+      get viewport() {
+        return {
+          zoom: self._zoom,
+          scroll: { position: self._scroll },
+          rendererSize: {
+            width: self.clientWidth || 1,
+            height: self.clientHeight || 1
+          }
+        };
+      },
       actions: {
         setMode: (mode) => {
           self._mode = mode;
@@ -1516,9 +1533,9 @@ export class LitIsoflow extends LitElement {
           )}
         </div>
         <div class="scene-layer controls" style=${styleMap(layerStyles)}>
-          ${this._renderLasso()} ${this._renderSelectionHighlights()}
-          ${this._renderTransformControls()}
+          ${this._renderSelectionHighlights()} ${this._renderTransformControls()}
         </div>
+        ${this._renderLasso()}
       </div>
     `;
   }
@@ -1823,8 +1840,34 @@ export class LitIsoflow extends LitElement {
 
   // --- transform controls (selection visuals) ---
 
-  /** A translucent parallelogram, in tile space: the lasso and its result. */
-  _renderTileArea(from, to, accent, { dashed = false } = {}) {
+  /**
+   * The band is a screen-aligned rectangle (#7): it renders as a plain overlay
+   * in the container, outside the transformed scene layers. mode.from/to are
+   * component-relative screen pixels.
+   */
+  _renderLasso() {
+    if (this._mode.type !== 'LASSO') return nothing;
+
+    const accent = this._theme.controlsAccent;
+    const { from, to } = this._mode;
+
+    return html`
+      <div
+        class="lasso"
+        style=${styleMap({
+          left: toPx(Math.min(from.x, to.x)),
+          top: toPx(Math.min(from.y, to.y)),
+          width: toPx(Math.abs(to.x - from.x)),
+          height: toPx(Math.abs(to.y - from.y)),
+          border: `2px dashed ${accent}`,
+          background: `${accent}1f`
+        })}
+      ></div>
+    `;
+  }
+
+  /** A translucent parallelogram, in tile space: a selected member's highlight. */
+  _renderTileArea(from, to, accent) {
     const { styles, pxSize } = this._projectionStyles(from, to);
 
     return html`
@@ -1842,24 +1885,10 @@ export class LitIsoflow extends LitElement {
             fill-opacity="0.12"
             stroke=${accent}
             stroke-width="2"
-            stroke-dasharray=${dashed ? '8, 6' : nothing}
           ></rect>
         </svg>
       </div>
     `;
-  }
-
-  _renderLasso() {
-    if (this._mode.type !== 'LASSO') return nothing;
-
-    return this._renderTileArea(
-      this._mode.from,
-      this._mode.to,
-      this._theme.controlsAccent,
-      {
-        dashed: true
-      }
-    );
   }
 
   _renderSelectionHighlights() {

@@ -2,10 +2,35 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  getItemsInBounds,
+  getItemsInScreenRect,
+  normalizeRect,
   toggleSelectionMember,
   mergeSelections
 } from '../src/editor/modes.js';
+import { tileToScreen } from '../src/utils/renderer.js';
+
+// Screen-space capture (#7): the tests build their rectangle FROM projected
+// tiles, so they check the containment rules, not the projection (which has
+// its own round-trip test in geometry.test.js).
+const viewport = {
+  zoom: 1,
+  scroll: { position: { x: 0, y: 0 } },
+  rendererSize: { width: 1000, height: 1000 }
+};
+const screenOf = (tile) => tileToScreen({ tile, ...viewport });
+// A screen rectangle covering the whole tile range a..b: tiles of constant
+// x+y project to the same screen Y, so the rectangle must span the four
+// projected corners of the range, not just two.
+const rectOver = (a, b) => {
+  const pad = 10;
+  const corners = [a, b, { x: a.x, y: b.y }, { x: b.x, y: a.y }].map(screenOf);
+  return {
+    minX: Math.min(...corners.map((c) => c.x)) - pad,
+    maxX: Math.max(...corners.map((c) => c.x)) + pad,
+    minY: Math.min(...corners.map((c) => c.y)) - pad,
+    maxY: Math.max(...corners.map((c) => c.y)) + pad
+  };
+};
 
 // The scene facade shape the modes receive: only the collections matter here.
 const scene = {
@@ -24,8 +49,11 @@ const scene = {
   ]
 };
 
-test('getItemsInBounds: captures what the band covers', () => {
-  const found = getItemsInBounds({ x: 0, y: 0 }, { x: 4, y: 4 }, scene);
+test('getItemsInScreenRect: captures what falls inside the rectangle on screen', () => {
+  // A rectangle spanning the projected corners of tiles (0,0)..(4,4) — in
+  // screen space that covers the whole diamond between them.
+  const rect = rectOver({ x: 0, y: 0 }, { x: 4, y: 4 });
+  const found = getItemsInScreenRect(rect, scene, viewport);
 
   assert.deepEqual(found, [
     { type: 'ITEM', id: 'in' },
@@ -35,24 +63,24 @@ test('getItemsInBounds: captures what the band covers', () => {
   ]);
 });
 
-test('getItemsInBounds: a zone is captured only when fully contained', () => {
-  const found = getItemsInBounds({ x: 0, y: 0 }, { x: 4, y: 4 }, scene);
+test('getItemsInScreenRect: a zone is captured only when fully contained', () => {
+  const rect = rectOver({ x: 0, y: 0 }, { x: 4, y: 4 });
+  const found = getItemsInScreenRect(rect, scene, viewport);
 
-  // 'straddling' pokes out of the band: brushed against, not aimed at.
+  // 'straddling' pokes out of the rectangle: brushed against, not aimed at.
   assert.ok(!found.some((m) => m.id === 'straddling'));
 });
 
-test('getItemsInBounds: corner order does not matter', () => {
-  const a = getItemsInBounds({ x: 0, y: 0 }, { x: 4, y: 4 }, scene);
-  const b = getItemsInBounds({ x: 4, y: 4 }, { x: 0, y: 0 }, scene);
+test('normalizeRect: corner order does not matter', () => {
+  const a = normalizeRect({ x: 10, y: 200 }, { x: 300, y: 20 });
 
-  assert.deepEqual(a, b);
+  assert.deepEqual(a, { minX: 10, maxX: 300, minY: 20, maxY: 200 });
 });
 
-test('getItemsInBounds: an empty band selects nothing', () => {
-  const found = getItemsInBounds({ x: 20, y: 20 }, { x: 25, y: 25 }, scene);
+test('getItemsInScreenRect: an empty rectangle selects nothing', () => {
+  const rect = rectOver({ x: 20, y: 20 }, { x: 25, y: 25 });
 
-  assert.deepEqual(found, []);
+  assert.deepEqual(getItemsInScreenRect(rect, scene, viewport), []);
 });
 
 test('toggleSelectionMember: adds, removes, and nulls out the last member', () => {
