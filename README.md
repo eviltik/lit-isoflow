@@ -52,7 +52,8 @@ The `editor-mode` attribute selects what `<lit-isoflow>` is:
 
 Editing capabilities (`EDITABLE`): select & drag items, rubber-band selection
 (drag on empty canvas to select a group, then move it as one; Shift adds to the
-selection — click or band), draw connectors
+selection — click or band), click-through to elements buried under others
+(clicking the selected element again descends the tile's stack), draw connectors
 (anchored to items or tiles), re-anchor or bend connectors by dragging their
 anchors/path, draw & resize rectangles, place icons, add text boxes, delete
 selection, gesture-level undo/redo, transient pan (hold Ctrl/Space).
@@ -159,7 +160,8 @@ diagrams into PDFs and Word files — is covered in the
 | ----------------------------- | ----------------------------------------------------------- |
 | Hold **Ctrl** or **Space**    | Pan; the active tool and selection are restored on release  |
 | **Shift+click**               | Add an element to the selection, or remove it (toggle)      |
-| **Shift+drag** (empty canvas) | Rubber band that adds to the selection instead of replacing |
+| **Shift+drag** (anywhere)     | Rubber band that adds to the selection instead of replacing |
+| Click the selected element    | Select the next element below it in the tile's stack        |
 | **Delete** / **Backspace**    | Delete the selection                                        |
 | **Escape**                    | Clear the selection                                         |
 | **Ctrl+Z**                    | Undo                                                        |
@@ -392,7 +394,9 @@ pnpm run check    # lint + formatting + unit tests
 ```
 
 There is no build step: `src/` is plain ES modules with JSDoc types, and that is
-what gets published. See [CONTRIBUTING.md](CONTRIBUTING.md).
+what gets published. See [CONTRIBUTING.md](CONTRIBUTING.md) — and if you are an
+AI coding agent (or pair with one), [AGENTS.md](AGENTS.md) maps the source,
+lists the invariants that must not break, and documents the e2e testing traps.
 
 ## Design notes / deviations from Isoflow
 
@@ -409,8 +413,9 @@ what gets published. See [CONTRIBUTING.md](CONTRIBUTING.md).
 - Gesture-level undo/redo — absent upstream.
 - Invalid connectors are skipped rather than deleted from the model.
 - The rubber-band selection is lit-isoflow's own, not a port: upstream's Lasso
-  mode is entirely commented out. It works in tile space — the projected
-  parallelogram you see is exactly what is captured.
+  mode is entirely commented out. The band is a screen-aligned rectangle, and
+  capture follows the eye: an element is selected when it falls inside the
+  rectangle on screen.
 
 ## Credits
 
