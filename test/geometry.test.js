@@ -26,7 +26,8 @@ import {
   getConnectorDirectionIcon,
   getItemAtTile,
   getFitToViewParams,
-  hasMovedTile
+  hasMovedTile,
+  tileToScreen
 } from '../src/utils/renderer.js';
 import {
   PROJECTED_TILE_SIZE,
@@ -321,4 +322,33 @@ test('config: tile geometry constants are stable (diagram compatibility)', () =>
   assert.equal(UNPROJECTED_TILE_SIZE, 100);
   assert.equal(PROJECTED_TILE_SIZE.width, 141.5);
   assert.equal(Math.round(PROJECTED_TILE_SIZE.height * 100) / 100, 81.9);
+});
+
+test('tileToScreen: exact inverse of screenToIso', () => {
+  // The projection must round-trip: a tile's centre, sent to the screen and
+  // read back, is the same tile — whatever the zoom and scroll.
+  const cases = [
+    { zoom: 1, scroll: { position: { x: 0, y: 0 } } },
+    { zoom: 0.05, scroll: { position: { x: 320, y: -180 } } },
+    { zoom: 2.5, scroll: { position: { x: -1000, y: 400 } } }
+  ];
+  const rendererSize = { width: 1400, height: 900 };
+
+  for (const { zoom, scroll } of cases) {
+    for (const tile of [
+      { x: 0, y: 0 },
+      { x: -6, y: 0 },
+      { x: 3, y: -2 },
+      { x: 40, y: 55 }
+    ]) {
+      const screen = tileToScreen({ tile, zoom, scroll, rendererSize });
+      const back = screenToIso({ mouse: screen, zoom, scroll, rendererSize });
+
+      // -Math.floor() yields -0 for y = 0; every real consumer treats it as
+      // 0, so the comparison normalises it (+ 0) rather than fail on Object.is.
+      const label = `zoom ${zoom}, tile ${JSON.stringify(tile)}`;
+      assert.equal(back.x + 0, tile.x, label);
+      assert.equal(back.y + 0, tile.y, label);
+    }
+  }
 });

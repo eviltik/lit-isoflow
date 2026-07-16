@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The selection band is a screen-aligned rectangle** (#7), not the isometric
+  parallelogram: it is what every tool trains the hand to expect. Capture
+  follows the eye — an element is selected when it falls inside the rectangle
+  on screen (nodes and text boxes by their projected tile centre, a zone when
+  its four projected corners are all inside).
+
 ### Added
 
 - **Additive selection with Shift** (#5). Shift+click adds an element to the

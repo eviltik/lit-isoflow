@@ -21,45 +21,63 @@ import {
   connectorPathTileToGlobal,
   getBoundingBox,
   convertBoundsToNamedAnchors,
-  isWithinBounds
+  tileToScreen
 } from '../utils/renderer.js';
 import { VIEW_ITEM_DEFAULTS } from '../config.js';
 
 // --- LASSO (rubber-band selection) ---
 
+/** Normalised screen rectangle from the band's two corners. */
+export const normalizeRect = (a, b) => {
+  return {
+    minX: Math.min(a.x, b.x),
+    maxX: Math.max(a.x, b.x),
+    minY: Math.min(a.y, b.y),
+    maxY: Math.max(a.y, b.y)
+  };
+};
+
 /**
  * Everything the rubber band covers, as {type, id} entries.
  *
- * What counts as covered:
- * - a node or a text box, when its anchor tile is inside;
- * - a zone (rectangle), when it is FULLY contained — a zone half-crossed by
- *   the band is more often brushed against than aimed at.
+ * The band is a SCREEN-ALIGNED rectangle (#7) — what every tool trains the
+ * hand to expect — so capture happens where the eye is: an element is caught
+ * when it falls inside the rectangle on screen.
+ *
+ * - a node or a text box, when its tile centre projects inside;
+ * - a zone (rectangle), when its four projected corners are all inside —
+ *   fully contained on screen; half-crossed is brushed against, not aimed at.
  *
  * Connectors are deliberately absent: the ones anchored to captured nodes
  * follow them by construction (their path is re-derived from the anchors), and
  * a tile-anchored connector cannot be group-moved through dragItems, whose
  * anchor branch re-resolves against the mouse tile — single-anchor logic.
  *
+ * @param {{ minX, maxX, minY, maxY }} rect — screen px, component-relative
+ * @param {object} scene
+ * @param {{ zoom: number, scroll: { position: Coords }, rendererSize: Size }} viewport
  * @returns {Array<{ type: 'ITEM'|'RECTANGLE'|'TEXTBOX', id: string }>}
  */
-export const getItemsInBounds = (from, to, scene) => {
-  const bounds = [from, to];
+export const getItemsInScreenRect = (rect, scene, viewport) => {
+  const inside = (tile) => {
+    const p = tileToScreen({ tile, ...viewport });
+    return p.x >= rect.minX && p.x <= rect.maxX && p.y >= rect.minY && p.y <= rect.maxY;
+  };
   const found = [];
 
   scene.items.forEach((item) => {
-    if (isWithinBounds(item.tile, bounds)) found.push({ type: 'ITEM', id: item.id });
+    if (inside(item.tile)) found.push({ type: 'ITEM', id: item.id });
   });
 
   scene.rectangles.forEach((rectangle) => {
-    if (isWithinBounds(rectangle.from, bounds) && isWithinBounds(rectangle.to, bounds)) {
-      found.push({ type: 'RECTANGLE', id: rectangle.id });
-    }
+    const { from, to } = rectangle;
+    const corners = [from, to, { x: from.x, y: to.y }, { x: to.x, y: from.y }];
+
+    if (corners.every(inside)) found.push({ type: 'RECTANGLE', id: rectangle.id });
   });
 
   scene.textBoxes.forEach((textBox) => {
-    if (isWithinBounds(textBox.tile, bounds)) {
-      found.push({ type: 'TEXTBOX', id: textBox.id });
-    }
+    if (inside(textBox.tile)) found.push({ type: 'TEXTBOX', id: textBox.id });
   });
 
   return found;
@@ -139,13 +157,17 @@ export const Lasso = {
 
     uiState.actions.setMode({
       ...uiState.mode,
-      to: uiState.mouse.position.tile
+      to: uiState.mouse.position.screen
     });
   },
   mouseup: ({ uiState, scene }) => {
     if (uiState.mode.type !== 'LASSO') return;
 
-    const items = getItemsInBounds(uiState.mode.from, uiState.mode.to, scene);
+    const items = getItemsInScreenRect(
+      normalizeRect(uiState.mode.from, uiState.mode.to),
+      scene,
+      uiState.viewport
+    );
     const selection = uiState.mode.additive
       ? mergeSelections(uiState.selection, items)
       : items.length > 0
@@ -282,8 +304,8 @@ export const Cursor = {
         type: 'LASSO',
         showCursor: false,
         additive: true,
-        from: uiState.mouse.mousedown.tile,
-        to: uiState.mouse.position.tile
+        from: uiState.mouse.mousedown.screen,
+        to: uiState.mouse.position.screen
       });
       return;
     }
@@ -308,8 +330,8 @@ export const Cursor = {
         type: 'LASSO',
         showCursor: false,
         additive: uiState.shiftHeld === true,
-        from: uiState.mouse.mousedown.tile,
-        to: uiState.mouse.position.tile
+        from: uiState.mouse.mousedown.screen,
+        to: uiState.mouse.position.screen
       });
       return;
     }
