@@ -13,7 +13,7 @@ const MESSAGES = {
     'lang.name': 'English',
 
     'tool.cursor': 'Select / move (V)',
-    'tool.pan': 'Pan the view (hold Shift/Space)',
+    'tool.pan': 'Pan the view (hold Ctrl/Space)',
     'tool.place': 'Place an icon',
     'tool.connector': 'Draw a connector',
     'tool.rectangle': 'Draw a zone',
@@ -40,6 +40,7 @@ const MESSAGES = {
     'gallery.choose': 'Choose…',
 
     'hints.pan': 'pan',
+    'hints.addToSelection': 'add to selection',
     'hints.delete': 'delete',
     'hints.undo': 'undo / redo',
 
@@ -84,7 +85,7 @@ const MESSAGES = {
     'lang.name': 'Français',
 
     'tool.cursor': 'Sélectionner / déplacer (V)',
-    'tool.pan': 'Déplacer la vue (ou maintenir Maj/Espace)',
+    'tool.pan': 'Déplacer la vue (ou maintenir Ctrl/Espace)',
     'tool.place': 'Placer une icône',
     'tool.connector': 'Tracer un connecteur',
     'tool.rectangle': 'Dessiner une zone',
@@ -111,6 +112,7 @@ const MESSAGES = {
     'gallery.choose': 'Choisir…',
 
     'hints.pan': 'déplacer',
+    'hints.addToSelection': 'ajouter à la sélection',
     'hints.delete': 'supprimer',
     'hints.undo': 'annuler / rétablir',
 

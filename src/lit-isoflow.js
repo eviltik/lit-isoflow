@@ -1097,6 +1097,9 @@ export class LitIsoflow extends LitElement {
       get selection() {
         return self._selection;
       },
+      get shiftHeld() {
+        return self._shiftHeld === true;
+      },
       actions: {
         setMode: (mode) => {
           self._mode = mode;
@@ -1137,6 +1140,9 @@ export class LitIsoflow extends LitElement {
 
     const mode = interactionModes[this._mode.type];
     if (!mode) return;
+
+    // Shift = sélection additive (#5) : les modes le lisent via la façade.
+    this._shiftHeld = event.shiftKey === true;
 
     const modeFunction = mode[event.type];
 
@@ -1197,12 +1203,13 @@ export class LitIsoflow extends LitElement {
     )
       return;
 
-    // Hold Shift or Space for a transient pan: the current tool is restored
-    // on release. Ignored mid-drag and when a modifier shortcut is involved.
+    // Hold Ctrl or Space for a transient pan: the current tool is restored on
+    // release. Shift is the additive-selection modifier (#5), so it cannot
+    // double as pan. Control's own keydown carries ctrlKey=true, hence the
+    // shortcut guard only applies to Space.
     if (
-      (event.key === 'Shift' || event.key === ' ') &&
-      !event.ctrlKey &&
-      !event.metaKey &&
+      (event.key === 'Control' ||
+        (event.key === ' ' && !event.ctrlKey && !event.metaKey)) &&
       !this._modeBeforePan &&
       !this._mouse.mousedown &&
       this._mode.type !== 'PAN' &&
@@ -1244,7 +1251,7 @@ export class LitIsoflow extends LitElement {
   }
 
   _handleKeyUp(event) {
-    if (event.key === 'Shift' || event.key === ' ') {
+    if (event.key === 'Control' || event.key === ' ') {
       this._endTransientPan();
     }
   }
