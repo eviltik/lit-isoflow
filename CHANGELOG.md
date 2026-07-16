@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An element buried under another can now be reached** (#3). Clicking the
+  selected element again descends the tile's stack — icon, then each connector
+  crossing the tile, then the zone below, wrapping at the bottom. Dragging
+  never advances the cycle: pressing a tile whose stack contains the current
+  selection grabs the selection, so once the zone is reached, dragging moves
+  the zone even though an icon sits on top. No cycle state to reset — the
+  depth is wherever the previous selection sits in the clicked tile's stack.
 - **Labels can no longer hide behind icons** (#2). Two causes, one per label
   kind: connector labels were painted before the nodes layer, and node labels
   lived inside the node layer where the isometric painter's order let a
