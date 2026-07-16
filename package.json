@@ -1,6 +1,6 @@
 {
   "name": "lit-isoflow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Isometric infrastructure diagrams as a Lit web component. A React-free port of Isoflow/FossFLOW.",
   "type": "module",
   "main": "src/index.js",
