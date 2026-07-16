@@ -51,10 +51,11 @@ The `editor-mode` attribute selects what `<lit-isoflow>` is:
 ```
 
 Editing capabilities (`EDITABLE`): select & drag items, rubber-band selection
-(drag on empty canvas to select a group, then move it as one), draw connectors
+(drag on empty canvas to select a group, then move it as one; Shift adds to the
+selection — click or band), draw connectors
 (anchored to items or tiles), re-anchor or bend connectors by dragging their
 anchors/path, draw & resize rectangles, place icons, add text boxes, delete
-selection, gesture-level undo/redo, transient pan (hold Shift/Space).
+selection, gesture-level undo/redo, transient pan (hold Ctrl/Space).
 Property panels (name, color, description…) are provided by the host app —
 see “Wiring a property panel”.
 
@@ -154,13 +155,15 @@ diagrams into PDFs and Word files — is covered in the
 
 ### Keyboard (EDITABLE)
 
-| Key                           | Action                                                     |
-| ----------------------------- | ---------------------------------------------------------- |
-| Hold **Shift** or **Space**   | Pan; the active tool and selection are restored on release |
-| **Delete** / **Backspace**    | Delete the selection                                       |
-| **Escape**                    | Clear the selection                                        |
-| **Ctrl+Z**                    | Undo                                                       |
-| **Ctrl+Y** / **Ctrl+Shift+Z** | Redo                                                       |
+| Key                           | Action                                                      |
+| ----------------------------- | ----------------------------------------------------------- |
+| Hold **Ctrl** or **Space**    | Pan; the active tool and selection are restored on release  |
+| **Shift+click**               | Add an element to the selection, or remove it (toggle)      |
+| **Shift+drag** (empty canvas) | Rubber band that adds to the selection instead of replacing |
+| **Delete** / **Backspace**    | Delete the selection                                        |
+| **Escape**                    | Clear the selection                                         |
+| **Ctrl+Z**                    | Undo                                                        |
+| **Ctrl+Y** / **Ctrl+Shift+Z** | Redo                                                        |
 
 Shortcuts are ignored while typing in an input, including inside a shadow root.
 

@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getItemsInBounds } from '../src/editor/modes.js';
+import {
+  getItemsInBounds,
+  toggleSelectionMember,
+  mergeSelections
+} from '../src/editor/modes.js';
 
 // The scene facade shape the modes receive: only the collections matter here.
 const scene = {
@@ -49,4 +53,50 @@ test('getItemsInBounds: an empty band selects nothing', () => {
   const found = getItemsInBounds({ x: 20, y: 20 }, { x: 25, y: 25 }, scene);
 
   assert.deepEqual(found, []);
+});
+
+test('toggleSelectionMember: adds, removes, and nulls out the last member', () => {
+  const a = toggleSelectionMember(null, { type: 'ITEM', id: 'n1' });
+  assert.deepEqual(a, [{ type: 'ITEM', id: 'n1' }]);
+
+  const b = toggleSelectionMember(a, { type: 'RECTANGLE', id: 'r1' });
+  assert.equal(b.length, 2);
+
+  // Same id, different type: both stay — identity is {type, id}.
+  const c = toggleSelectionMember(b, { type: 'TEXTBOX', id: 'n1' });
+  assert.equal(c.length, 3);
+
+  const d = toggleSelectionMember(c, { type: 'ITEM', id: 'n1' });
+  assert.ok(!d.some((m) => m.type === 'ITEM' && m.id === 'n1'));
+
+  // Removing the last member yields null, not an empty group.
+  assert.equal(
+    toggleSelectionMember([{ type: 'ITEM', id: 'x' }], { type: 'ITEM', id: 'x' }),
+    null
+  );
+});
+
+test('toggleSelectionMember: connectors are not selectable', () => {
+  const base = [{ type: 'ITEM', id: 'n1' }];
+  assert.equal(toggleSelectionMember(base, { type: 'CONNECTOR', id: 'c1' }), base);
+  assert.equal(toggleSelectionMember(base, null), base);
+});
+
+test('mergeSelections: union by {type, id}, base order kept', () => {
+  const base = [
+    { type: 'ITEM', id: 'a' },
+    { type: 'ITEM', id: 'b' }
+  ];
+  const added = [
+    { type: 'ITEM', id: 'b' },
+    { type: 'RECTANGLE', id: 'z' }
+  ];
+
+  assert.deepEqual(mergeSelections(base, added), [
+    { type: 'ITEM', id: 'a' },
+    { type: 'ITEM', id: 'b' },
+    { type: 'RECTANGLE', id: 'z' }
+  ]);
+  assert.deepEqual(mergeSelections(null, added), added);
+  assert.equal(mergeSelections(null, []), null);
 });

@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Additive selection with Shift** (#5). Shift+click adds an element to the
+  selection, or removes it when already there — the toggle is what lets a
+  selection be corrected instead of rebuilt. Shift+rubber-band merges the
+  band's capture into the existing selection instead of replacing it, and a
+  single-click selection is promoted to a group so it can grow. Works whatever
+  built the current selection.
+
+### Changed
+
+- **Transient pan moves from Shift to Ctrl** (Space unchanged). Shift is the
+  universal add-to-selection modifier and cannot double as pan.
+
 - **Rubber-band selection** (#1). Dragging on empty canvas with the cursor tool
   draws a selection band, in tile space — the projected parallelogram you see is
   exactly what is captured. Nodes and text boxes are caught by their anchor

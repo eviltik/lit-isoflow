@@ -73,11 +73,62 @@ const isSelectionMember = (selection, item) => {
   });
 };
 
+// What a group can hold: what the band captures, and nothing else. Connectors
+// stay out — dragItems cannot group-move them (see getItemsInBounds).
+const SELECTABLE = new Set(['ITEM', 'RECTANGLE', 'TEXTBOX']);
+
+/**
+ * Shift+click semantics: adds the element to the group, or removes it when
+ * already there — the toggle is what lets a selection be corrected instead of
+ * rebuilt. Returns null when the last member is removed.
+ */
+export const toggleSelectionMember = (selection, item) => {
+  if (!item || !SELECTABLE.has(item.type)) return selection;
+
+  const base = selection ?? [];
+  const without = base.filter((member) => {
+    return !(member.type === item.type && member.id === item.id);
+  });
+
+  if (without.length < base.length) return without.length > 0 ? without : null;
+  return [...base, { type: item.type, id: item.id }];
+};
+
+/** Union of two selections, by {type, id}, keeping the base's order. */
+export const mergeSelections = (base, added) => {
+  const merged = [...(base ?? [])];
+
+  (added ?? []).forEach((item) => {
+    if (!isSelectionMember(merged, item)) merged.push(item);
+  });
+
+  return merged.length > 0 ? merged : null;
+};
+
+/** A single-click selection, promoted to a one-member group. */
+const promoteToSelection = (uiState) => {
+  if (uiState.selection) return uiState.selection;
+
+  const single = uiState.itemControls;
+  if (single && SELECTABLE.has(single.type)) {
+    return [{ type: single.type, id: single.id }];
+  }
+
+  return null;
+};
+
 export const Lasso = {
   entry: ({ uiState }) => {
-    // A new rubber band is a new selection: whatever was selected is gone.
+    // A band started with Shift ADDS to the selection: keep it, folding a
+    // single-click selection into the group. Otherwise a new band is a new
+    // selection: whatever was selected is gone.
+    if (uiState.mode.additive) {
+      uiState.actions.setSelection(promoteToSelection(uiState));
+    } else {
+      uiState.actions.setSelection(null);
+    }
+
     uiState.actions.setItemControls(null);
-    uiState.actions.setSelection(null);
     uiState.actions.setCursor('crosshair');
   },
   exit: ({ uiState }) => {
@@ -95,8 +146,13 @@ export const Lasso = {
     if (uiState.mode.type !== 'LASSO') return;
 
     const items = getItemsInBounds(uiState.mode.from, uiState.mode.to, scene);
+    const selection = uiState.mode.additive
+      ? mergeSelections(uiState.selection, items)
+      : items.length > 0
+        ? items
+        : null;
 
-    uiState.actions.setSelection(items.length > 0 ? items : null);
+    uiState.actions.setSelection(selection);
     uiState.actions.setMode({
       type: 'CURSOR',
       showCursor: true,
@@ -184,6 +240,11 @@ const cursorMousedown = ({ uiState, scene, isRendererInteraction }) => {
 
   uiState.actions.setMode({ ...uiState.mode, mousedownItem: itemAtTile });
 
+  // With Shift held the gesture builds the selection: nothing is decided at
+  // mousedown — the toggle happens on mouseup, and a band started from empty
+  // canvas merges instead of replacing (Lasso reads mode.additive).
+  if (uiState.shiftHeld) return;
+
   // Pressing on a member of a rubber-band selection must not dissolve the
   // group into single-item controls: the press may be the start of a group
   // drag. A plain click (no drag) collapses it in mouseup instead.
@@ -212,6 +273,21 @@ export const Cursor = {
 
     let item = uiState.mode.mousedownItem;
 
+    // With Shift held the gesture is about selection, not movement: any drag
+    // becomes an additive band, wherever it starts — a dense diagram may have
+    // no empty tile to start from. A press without tile movement stays a
+    // click, and toggles in mouseup.
+    if (uiState.shiftHeld && uiState.mouse.mousedown) {
+      uiState.actions.setMode({
+        type: 'LASSO',
+        showCursor: false,
+        additive: true,
+        from: uiState.mouse.mousedown.tile,
+        to: uiState.mouse.position.tile
+      });
+      return;
+    }
+
     // Dragging any member of a rubber-band selection moves the whole set:
     // DRAG_ITEMS has always taken an array, it just never received more than
     // one element before.
@@ -225,11 +301,13 @@ export const Cursor = {
       return;
     }
 
-    // Pressed on empty canvas and moved: start a rubber band.
+    // Pressed on empty canvas and moved: start a rubber band. With Shift it
+    // adds to the existing selection instead of replacing it.
     if (!item && uiState.mouse.mousedown) {
       uiState.actions.setMode({
         type: 'LASSO',
         showCursor: false,
+        additive: uiState.shiftHeld === true,
         from: uiState.mouse.mousedown.tile,
         to: uiState.mouse.position.tile
       });
@@ -256,6 +334,22 @@ export const Cursor = {
     if (uiState.mode.type !== 'CURSOR' || !isRendererInteraction) return;
 
     const item = uiState.mode.mousedownItem;
+
+    // Shift+click: toggle the element in the group (a single-click selection
+    // is promoted to a one-member group first, so the group can grow from
+    // it). On empty canvas or a non-selectable element, nothing changes.
+    if (uiState.shiftHeld) {
+      if (item && SELECTABLE.has(item.type)) {
+        const selection = promoteToSelection(uiState);
+        uiState.actions.setItemControls(null);
+        uiState.actions.setSelection(
+          toggleSelectionMember(selection, { type: item.type, id: item.id })
+        );
+      }
+
+      uiState.actions.setMode({ ...uiState.mode, mousedownItem: null });
+      return;
+    }
 
     // Reaching mouseup still in CURSOR means no drag happened (a drag would
     // have switched the mode). A plain click on a selection member collapses
