@@ -34,7 +34,11 @@ src/
 `utils/renderer.js`, `config.js`, `theme.js`. Consequences:
 
 - A visual change (layer order, label placement, colours) must land in
-  **both** renderers, or exported documents stop matching the editor.
+  **both** renderers, or exported documents stop matching the editor. The
+  exception is runtime interaction feedback that is not part of the document:
+  the `pulse()` flow animation lives in `lit-isoflow.js` only and the headless
+  renderer ignores it on purpose — a pulse is an interaction, not something an
+  exported SVG/PDF should freeze mid-scroll. Do not "fix" its absence there.
 - **Never put viewport-dependent logic in the shared files.** The headless
   renderer runs where there is no viewport (Node, CLIs, PDF pipelines):
   viewport culling in `scene.js` would export empty diagrams. Culling lives in

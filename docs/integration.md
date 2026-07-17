@@ -15,6 +15,7 @@ ones that actually bit, not hypothetical ones.
 - [Diagrams in documents (PDF, Word)](#diagrams-in-documents-pdf-word)
 - [Frameworks](#frameworks)
 - [Electron](#electron)
+- [Real-time viewers](#real-time-viewers)
 
 ## Dropping it in
 
@@ -271,3 +272,37 @@ and any SVG cache of your own survive a renderer reload. Rebuilding the front-en
 bundle will **not** pick up a new version of the component — the app has to be
 restarted. This looks exactly like "my changes did nothing", and it costs an hour
 the first time.
+
+**Native drag & drop over the scene is handled.** If the component shares a
+window with a native HTML5 drag source — a dockview tab, a file drop zone —
+dropping over the scene used to leave it panning by itself: the browser
+swallows the mouse events during a native drag, so the `mouseup` that ends a
+press never arrives. The component now detects a move with no button held and
+disarms itself, so a stray drag no longer hijacks the pan. Nothing to wire.
+
+## Real-time viewers
+
+If your app drives the diagram live — agent states changing, a request
+travelling an edge — two things keep it smooth.
+
+**Patch, don't replace.** Reassigning `model` re-ingests the whole document.
+For a running scene, mutate in place instead: `updateConnector(id, updates)`,
+`updateItem(id, updates)`, `updateViewItem`, `updateRectangle`. These keep the
+camera (no re-fit), and only the elements that actually changed re-render — the
+rest is memoised by object identity, so a scene of a few nodes or a few
+thousand costs the same per update.
+
+**Signal flow with `pulse()`.** To show a message travelling a connector, play
+a one-shot flow animation rather than toggling styles by hand:
+
+```js
+diagram.pulse(connectorId, { durationMs: 1400, glow: true });
+// or a coloured flow: diagram.pulse(id, { color: '#22d3ee', glow: true });
+```
+
+Dashes scroll along the connector from→to for `durationMs`, then it clears
+itself. It is **runtime, not model**: it fires no `model-updated`, adds no undo
+entry, and the headless renderer ignores it — a pulse is an interaction, not a
+document, so it never leaks into an exported SVG or PDF. The animation is pure
+CSS and stills under `prefers-reduced-motion`. `glow` adds a soft halo that
+reads best on the dark theme.
