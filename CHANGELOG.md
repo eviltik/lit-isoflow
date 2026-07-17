@@ -5,6 +5,21 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The scene no longer pans by itself after a native HTML5 drag over it**
+  (#11). The mouse listeners live on `window`; during a native drag & drop
+  (e.g. dragging a dockview tab across an embedded readonly viewer) the browser
+  swallows mouse events, so a `mousedown` seen before the drag never gets its
+  matching `mouseup`. `_mouse.mousedown` stayed armed and every later
+  `mousemove` read as an ongoing pan, following the cursor with no button
+  held until the next click. Guard: a `mousemove` carrying `buttons === 0`
+  while a mousedown is still armed is treated as the missing `mouseup` and
+  disarms the state. This also covers a `mouseup` released outside the window,
+  the same class of lost-event bug.
+
 ## [1.1.0] — 2026-07-16
 
 ### Fixed

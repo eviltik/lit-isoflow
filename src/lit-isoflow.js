@@ -1160,6 +1160,24 @@ export class LitIsoflow extends LitElement {
     const mode = interactionModes[this._mode.type];
     if (!mode) return;
 
+    // Un mousemove sans bouton enfoncé alors qu'un mousedown est encore armé
+    // signifie que le mouseup a été avalé : drag HTML5 natif au-dessus de la
+    // scène (le navigateur supprime les mouse events pendant le dnd), ou
+    // mouseup relâché hors de la fenêtre. Sans garde, _mouse.mousedown reste
+    // armé et chaque mousemove est interprété comme un pan en cours (#11). On
+    // traite ce mousemove fantôme comme le mouseup manquant pour désarmer.
+    if (event.type === 'mousemove' && event.buttons === 0 && this._mouse.mousedown) {
+      this._handleMouseEvent({
+        type: 'mouseup',
+        clientX: event.clientX,
+        clientY: event.clientY,
+        shiftKey: event.shiftKey,
+        composedPath: event.composedPath?.bind(event),
+        target: event.target
+      });
+      return;
+    }
+
     // Shift = sélection additive (#5) : les modes le lisent via la façade.
     this._shiftHeld = event.shiftKey === true;
 
