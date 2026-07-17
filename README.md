@@ -141,6 +141,15 @@ diagrams into PDFs and Word files — is covered in the
 - `createRectangle({ from, to, color?, id? })` / `deleteRectangle(id)` — place a
   zone programmatically (importing, templating, generating), rather than only by
   drawing it with the mouse. Returns the new id.
+- `pulse(connectorId, { durationMs?, color?, glow? })` — play a one-shot flow
+  animation along a connector: dashes scroll from→to for `durationMs` (default
+  1400), then it clears itself. For real-time viewers signalling a message
+  travelling an edge. Runtime only — no `model-updated`, no undo entry, ignored
+  by the headless renderer (a pulse is an interaction, not a document).
+  `color?` overrides the flow colour, `glow?` adds a soft halo (best on the
+  dark theme). Pure CSS, stills under `prefers-reduced-motion`. For frequent
+  state changes, patch with `updateConnector`/`updateItem` rather than
+  replacing `model` — those keep the camera and re-render only what changed.
 - `exportSvg(options?)` — renders the view to **vector SVG**. Returns
   `{ svg, width, height }`. Options: `showGrid` (default false), `background`
   (default `'transparent'`), `margin` (default 0.15 tiles). A thin wrapper around
