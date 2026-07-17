@@ -271,3 +271,10 @@ and any SVG cache of your own survive a renderer reload. Rebuilding the front-en
 bundle will **not** pick up a new version of the component — the app has to be
 restarted. This looks exactly like "my changes did nothing", and it costs an hour
 the first time.
+
+**Native drag & drop over the scene is handled.** If the component shares a
+window with a native HTML5 drag source — a dockview tab, a file drop zone —
+dropping over the scene used to leave it panning by itself: the browser
+swallows the mouse events during a native drag, so the `mouseup` that ends a
+press never arrives. The component now detects a move with no button held and
+disarms itself, so a stray drag no longer hijacks the pan. Nothing to wire.
