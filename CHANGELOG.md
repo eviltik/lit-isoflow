@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`pulse(connectorId, { durationMs?, color?, glow? })`** (#13). Plays a
+  one-shot flow animation along a connector: dashes scroll from→to for
+  `durationMs` (default 1400), then the pulse clears itself. Built for
+  real-time viewers signalling a message travelling an edge — an agent
+  streaming, a request in flight. Deliberately **runtime, not model**: it
+  fires no `model-updated`, adds no undo entry, and the headless renderer
+  ignores it, because a pulse is an interaction, not a document (an export is
+  static). The scroll direction follows the connector's own from→to whichever
+  way it was drawn, so the flow chases the direction arrow. `color?` overrides
+  the flow colour (default: the connector's); `glow?` adds a soft halo, which
+  reads best on the dark theme. The animation is pure CSS
+  (`stroke-dashoffset`) — no per-frame JS, and it stills under
+  `prefers-reduced-motion`. Calling it again on the same connector restarts
+  it. Hosts driving frequent state changes should reach for the existing
+  `updateConnector`/`updateItem` mutations rather than replacing the whole
+  `model`: they patch in place, keep the camera (no re-fit), and only re-render
+  what changed.
+
 ### Fixed
 
 - **The scene no longer pans by itself after a native HTML5 drag over it**
