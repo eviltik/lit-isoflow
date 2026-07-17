@@ -179,6 +179,27 @@ export class LitIsoflow extends LitElement {
       pointer-events: none;
     }
 
+    /* Flow pulse (pulse()): dashes scroll along the connector. The SVG is
+       horizontally flipped, so a decreasing dashoffset reads from→to on
+       screen — the dashes chase the direction arrow. Pure CSS, no per-frame
+       JS. Honour reduced-motion: the overlay still shows, just still. */
+    .connector-pulse {
+      animation: connector-pulse-flow 0.9s linear infinite;
+    }
+
+    @keyframes connector-pulse-flow {
+      to {
+        /* one full dash+gap cycle, set per-connector so it tracks the zoom */
+        stroke-dashoffset: calc(-1 * var(--pulse-cycle, 8px));
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .connector-pulse {
+        animation: none;
+      }
+    }
+
     .lasso {
       position: absolute;
       pointer-events: none;
@@ -330,6 +351,13 @@ export class LitIsoflow extends LitElement {
     this._redoStack = [];
     this._historyOpen = false;
 
+    // Runtime, out-of-model flow pulses: connectorId → { color, glow } while
+    // active, plus a per-connector timer that clears it after durationMs. A
+    // pulse is an interaction, not a document — it never touches the model and
+    // the headless renderer ignores it (an export is static). See pulse().
+    this._pulses = new Map();
+    this._pulseTimers = new Map();
+
     this._onWindowMouseEvent = this._handleMouseEvent.bind(this);
     this._onWindowTouchStart = this._makeTouchHandler('mousedown');
     this._onWindowTouchMove = this._makeTouchHandler('mousemove');
@@ -403,6 +431,9 @@ export class LitIsoflow extends LitElement {
     window.removeEventListener('keyup', this._onWindowKeyUp);
     window.removeEventListener('blur', this._onWindowBlur);
     clearTimeout(this._modelUpdateTimer);
+    for (const timer of this._pulseTimers.values()) clearTimeout(timer);
+    this._pulseTimers.clear();
+    this._pulses.clear();
   }
 
   willUpdate(changed) {
@@ -682,6 +713,40 @@ export class LitIsoflow extends LitElement {
   updateConnector(id, updates) {
     if (!this._scene) return;
     this._sceneFacade().updateConnector(id, updates);
+  }
+
+  /**
+   * Plays a one-shot flow animation along a connector: dashes scroll from→to
+   * for `durationMs`, then the pulse clears itself. Runtime only — it never
+   * touches the model (so no undo entry, no `model-updated`, nothing to
+   * persist or export). Calling it again on the same connector restarts the
+   * animation with the new options.
+   *
+   * The scroll direction follows the connector's own from→to, whichever way
+   * it was drawn: the connector's SVG is horizontally flipped, so a negative
+   * dashoffset sweep reads as from→to on screen and the flow chases the
+   * direction arrow.
+   *
+   * @param {string} connectorId
+   * @param {{ durationMs?: number, color?: string, glow?: boolean }} [options]
+   */
+  pulse(connectorId, { durationMs = 1400, color, glow = false } = {}) {
+    if (!this._scene) return;
+    if (!this._scene.connectors.some((c) => c.id === connectorId)) return;
+
+    clearTimeout(this._pulseTimers.get(connectorId));
+
+    this._pulses.set(connectorId, { color, glow });
+    this._pulseTimers.set(
+      connectorId,
+      setTimeout(() => {
+        this._pulses.delete(connectorId);
+        this._pulseTimers.delete(connectorId);
+        this.requestUpdate();
+      }, durationMs)
+    );
+
+    this.requestUpdate();
   }
 
   /** Updates a rectangle (color id, from, to). */
@@ -1654,6 +1719,19 @@ export class LitIsoflow extends LitElement {
 
     const directionIcon = getConnectorDirectionIcon(connector.path.tiles);
 
+    // Runtime flow pulse (pulse()): a scrolling-dash overlay along the same
+    // polyline, plus an optional glow. The dash gap is a multiple of the
+    // stroke width; the CSS animates stroke-dashoffset so the dashes travel.
+    const pulse = this._pulses.get(connector.id);
+    const pulseColor = pulse?.color ?? getColorVariant(color.value, 'dark', { grade: 1 });
+    const pulseDash = `${widthPx * 1.5} ${widthPx * 2.5}`;
+    // The SVG is horizontally flipped (scale(-1,1)); a positive dashoffset
+    // sweep then reads right-to-left on screen. Sweep the offset negative so
+    // the flow travels along the connector's own from→to, whichever way drawn.
+    const svgStyle = `transform: scale(-1, 1);${
+      pulse?.glow ? ` filter: drop-shadow(0 0 ${widthPx * 1.2}px ${pulseColor});` : ''
+    }`;
+
     return html`
       <div class="projected" style=${styleMap(styles)}>
         <svg
@@ -1661,7 +1739,7 @@ export class LitIsoflow extends LitElement {
           viewBox="0 0 ${pxSize.width} ${pxSize.height}"
           width="${pxSize.width}px"
           height="${pxSize.height}px"
-          style="transform: scale(-1, 1)"
+          style=${svgStyle}
         >
           <polyline
             points=${points}
@@ -1682,6 +1760,23 @@ export class LitIsoflow extends LitElement {
             stroke-dasharray=${dashArray}
             fill="none"
           ></polyline>
+          ${
+            pulse
+              ? svg`
+              <polyline
+                class="connector-pulse"
+                points=${points}
+                stroke=${pulseColor}
+                stroke-width=${widthPx * 1.1}
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-dasharray=${pulseDash}
+                style=${`--pulse-cycle: ${widthPx * 4}px`}
+                fill="none"
+              ></polyline>
+            `
+              : nothing
+          }
           ${
             directionIcon
               ? svg`
