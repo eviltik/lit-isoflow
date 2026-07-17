@@ -130,6 +130,18 @@ true`), not on `window` — `isRendererInteraction` fails otherwise.
 - One branch per issue, PR titled for the change, body explains _why_, ends
   with `Closes #N`. CI green, then **the maintainer tests the demos by hand
   before merging** — do not merge on your own initiative.
+- **Everything for one change — code, CHANGELOG, README, docs — lands on that
+  change's own branch, in the same commit or right beside it.** Do not write
+  the code on a feature branch and the docs somewhere else "for convenience":
+  when the maintainer merges the PR, the docs must come with it.
+- **An integration branch is a pure merge, never an edit surface.** When a
+  consumer needs two open PRs combined in their `link:` checkout, build
+  `integration/a+b` by merging the feature branches and nothing more. If a
+  fix or a doc line is missing, add it **on the source branch**, then re-merge
+  — never commit it straight onto the integration branch. (Editing the
+  integration branch directly means the PRs ship incomplete, and the next
+  re-merge conflicts with your own stray commit. That mistake cost a stash,
+  a hand-split, and a conflict once — this note is the receipt.)
 - `CHANGELOG.md` under `[Unreleased]`, in the same explanatory register as
   the existing entries (what, why, the trade-offs assumed).
 - Demo texts are i18n'd in `demo/shared/i18n.js` — **both** `en` and `fr`,
